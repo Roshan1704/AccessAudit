@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/security" },
+    { "path": "packages/db" },
+    { "path": "packages/crawler" },
+    { "path": "packages/a11y-engine" },
+    { "path": "packages/ai" },
+    { "path": "apps/api" },
+    { "path": "apps/worker" }
+  ]
+}

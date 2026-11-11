@@ -1,0 +1,150 @@
+# Security Threat Model
+
+Status: Draft v0.1 · Date: 2026-11-11 · Method: STRIDE per trust boundary, plus abuse cases specific to a platform that fetches arbitrary URLs and stores third-party credentials.
+
+**Gate:** no crawler or browser-worker code is merged until every control marked **[Gate]** has a written test plan in `TESTING_STRATEGY.md` and, for Phase 2 onward, an executed passing test.
+
+## 1. Assets (ranked)
+
+| # | Asset | Why it matters |
+|---|---|---|
+| A1 | Customer-site credentials and captured browser sessions | Direct access to customers' production systems |
+| A2 | Other tenants' scan data, screenshots, DOM snapshots | May contain PII and internal application content |
+| A3 | Platform infrastructure and internal network (DB, Redis, object store, cloud metadata) | Pivot target via SSRF or browser escape |
+| A4 | User accounts, API keys, share links | Account takeover, data exfiltration |
+| A5 | Master encryption keys | Decrypts A1 |
+| A6 | LLM prompts/outputs | Possible leak of A1/A2 to a third party |
+| A7 | Integrity of findings/reports | Wrong conclusions, legal exposure |
+
+## 2. Actors
+
+- Anonymous internet attacker.
+- Malicious or compromised tenant user (authenticated, wants other tenants' data or the internal network).
+- Malicious scanned website (hostile content, redirects, JS, downloads).
+- Insider with DB/log/storage access.
+- Compromised dependency or worker container.
+- Prompt-injecting content inside scanned pages.
+
+## 3. Trust boundaries
+
+TB1 internet ↔ web/api · TB2 api ↔ queue/DB · TB3 worker ↔ hostile target site · TB4 worker ↔ internal services · TB5 platform ↔ LLM provider · TB6 platform ↔ object storage · TB7 user browser ↔ guided-session remote browser.
+
+## 4. Threats and controls
+
+Each row: threat → controls → verification. IDs are referenced from the traceability matrix.
+
+### 4.1 SSRF and DNS rebinding (TB3/TB4) — A3
+
+| ID | Threat | Controls | Verification |
+|---|---|---|---|
+| T-SSRF-01 | User submits URL to internal host (`localhost`, `10.x`, `169.254.169.254`, `[::1]`, decimal/octal/hex IP forms, IPv4-mapped IPv6) | **[Gate]** API validation: https/http only, port allow-list, reject userinfo, reject IP literals in private ranges after canonical parsing. Egress proxy independently denies all non-public destination IPs. | Table-driven test of >60 encodings; test against a loopback fixture asserting zero connections arrive |
+| T-SSRF-02 | DNS rebinding: hostname resolves public at validation, private at fetch | **[Gate]** Egress proxy resolves once and connects to the validated IP (pinning). Worker has no direct DNS or route. No resolution happens in the worker. | Fixture DNS server that flips answers between queries; scan must not reach internal service |
+| T-SSRF-03 | Redirect chain to internal address | Browser route interception revalidates every navigation and subresource URL; max redirect count; proxy blocks the final connection regardless | Fixture 302 to loopback/metadata IP |
+| T-SSRF-04 | Subresource/WebSocket/`fetch` from page JS to internal hosts | Same proxy; Chromium launched with `--proxy-server` and proxy bypass list empty; direct egress blocked by network policy | Fixture page issuing requests to internal IPs |
+| T-SSRF-05 | Alternate schemes (`file:`, `ftp:`, `chrome:`, `data:` navigations, `blob:`, `view-source:`) | Navigation allow-list: http/https only; permission-denied for downloads and external protocol handlers | Fixture + unit test |
+| T-SSRF-06 | Cloud metadata endpoint access | Explicit deny for `169.254.169.254`, `fd00:ec2::254`, metadata hostnames; IMDSv2 required in prod; workers have no instance role beyond object-store prefix | Config test + fixture |
+| T-SSRF-07 | Webhook/integration URLs used as SSRF vector | Same URL policy and egress proxy applied to outbound webhooks/integrations | Unit + integration |
+
+Known limit: the proxy cannot inspect HTTPS redirect responses (no TLS interception), so redirect policy is enforced in the browser layer while IP policy is enforced at the proxy. Both are mandatory (ADR-011).
+
+### 4.2 Credentials and sessions (A1, A5)
+
+| ID | Threat | Controls | Verification |
+|---|---|---|---|
+| T-CRED-01 | Plaintext credentials/cookies at rest | **[Gate]** AES-256-GCM envelope encryption, per-record data key, `key_id`, AAD = `orgId|profileId|domain`. No plaintext columns exist. | Test: DB dump contains no plaintext; AAD tamper fails decryption |
+| T-CRED-02 | Blob moved between tenants/profiles/domains | AAD binding; decrypt refuses mismatch | Test swapping rows |
+| T-CRED-03 | Secrets in logs, errors, traces, queue payloads, screenshots, URLs | Central pino redaction list; queue payloads contain IDs only; error serializers strip; cookie/header scrubber on HAR/network logs; secret-scanning unit tests that grep log output of full e2e runs | Log-capture test with canary secrets |
+| T-CRED-04 | Secrets sent to browser/frontend | API never returns credentials or storage state; guided-session UI receives pixels and input events only; separate `session` read model exposes metadata only | Contract test over all responses for canary values |
+| T-CRED-05 | Master key compromise | `KeyProvider` interface; KMS in production; rotation via `key_id` re-wrap job; separate key per environment | Rotation test |
+| T-CRED-06 | Worker compromise exposes sessions | Worker decrypts only for its current job's org/profile (DB role + RLS); material held in memory only; browser profile on tmpfs, destroyed per job; short job lifetime | Isolation test; manual review |
+| T-CRED-07 | Credential stuffing/lockout of customer accounts by repeated retries | Max one login attempt per profile per verification; lockout detection halts and sets `locked`; no automatic retry on auth failure | State-machine tests |
+| T-CRED-08 | Credentials captured in screenshots/DOM evidence | Password inputs masked/blanked before snapshot; value attributes stripped from `input[type=password]`; configurable field redaction; evidence retention limits | Fixture with canary values |
+| T-CRED-09 | Session reused against a different domain | Session bound to domain at capture; cookie jar filtered to authorized domains before use | Test |
+
+### 4.3 Browser isolation (TB3) — A3, A2
+
+| ID | Threat | Controls |
+|---|---|---|
+| T-BRW-01 | Malicious page exploits Chromium | Non-root container, seccomp default + no extra caps, read-only root FS, tmpfs for profile, no inbound ports, resource limits (CPU, memory, pids), no `--no-sandbox` in prod (use userns or gVisor-class runtime where available), browser binary pinned and patched on a schedule |
+| T-BRW-02 | Data bleed between tenants via shared browser state | New BrowserContext per (scan, profile); browser process never shared between organizations; contexts closed and profile dir deleted after job |
+| T-BRW-03 | Resource exhaustion (infinite scroll, huge pages, crypto-miners, popups, memory bombs) | Per-page timeout, DOM node cap, response size cap, max pages/depth, popup/download blocking, per-job wall-clock kill |
+| T-BRW-04 | Downloads/file chooser/permissions prompts | Downloads denied; all permissions denied; geolocation/camera/mic blocked |
+| T-BRW-05 | Page JS interacts with destructive actions during state discovery | Read-only interaction policy: element classifier blocks purchase/delete/pay/publish/submit; GET-only enforcement option by blocking non-GET requests from discovery interactions on non-approved workflows |
+| T-BRW-06 | Guided-session remote browser abused as open proxy/browser | Guided browser limited to the authorized domains, same egress proxy, session TTL, single user binding, idle timeout, no devtools, no file system access, clipboard disabled |
+
+### 4.4 Tenant isolation (A2)
+
+| ID | Threat | Controls | Verification |
+|---|---|---|---|
+| T-TEN-01 | Missing `WHERE org_id` in a query (IDOR) | **[Gate]** RLS enforced and forced; app roles `NOBYPASSRLS`; composite FKs; repository layer takes tenant context; lint ban on raw `db` use outside `packages/db` | Cross-tenant test matrix across API, repositories and raw SQL |
+| T-TEN-02 | Guessable or enumerable IDs | UUIDs; 404 (not 403) for cross-tenant IDs | API tests |
+| T-TEN-03 | Object storage cross-tenant access | Keys prefixed by org; signed URLs per object with short TTL; bucket private; bucket policy denies listing | Test |
+| T-TEN-04 | Queue payload tampering/replay to run job for another org | Job payload carries IDs; worker re-derives org from DB row under the job's tenant context and rejects mismatch; Redis requires auth and is not internet-reachable | Test |
+| T-TEN-05 | Noisy neighbor starving others | Per-org concurrency and quota; fair queueing by org | Load test (Phase 9) |
+| T-TEN-06 | Shared report links leaking data | Random 256-bit token (hash stored), expiry, revoke, download flag, no indexing headers | Test |
+
+### 4.5 API and application (TB1) — A4
+
+| ID | Threat | Controls |
+|---|---|---|
+| T-API-01 | Credential stuffing / brute force on login | argon2id; per-IP + per-account rate limits; generic errors; optional TOTP; breach-password check later |
+| T-API-02 | Session fixation/theft, CSRF | Session ID rotated on login; HttpOnly+Secure+SameSite=Lax cookie; CSRF token on state changes; origin check; strict CORS allow-list |
+| T-API-03 | Injection (SQL, header, log) | Drizzle parameterization; Zod validation; reject unknown fields; output encoding |
+| T-API-04 | Stored XSS from scanned page content (HTML snippets, titles, selectors rendered in UI/reports) | Treat all scan-derived strings as untrusted; React escaping only, never `dangerouslySetInnerHTML` on scan data; snippets rendered as text; report HTML generation escapes; strict CSP without `unsafe-inline` |
+| T-API-05 | API key leakage / over-privilege | Prefix + hash storage, scopes, expiry, last-used, revocation, shown once, cannot exceed creator role |
+| T-API-06 | Mass assignment, privilege escalation via role changes | Explicit DTO allow-lists; owner invariants; audit log |
+| T-API-07 | Rate-limit bypass / DoS via scan creation | Per-org scan quotas, max concurrent scans, request body limits, idempotency keys |
+| T-API-08 | Dependency/supply-chain compromise | Lockfile committed, `npm ci` only, provenance/audit in CI, Dependabot, minimal deps (ADR), no postinstall scripts allowed without review |
+| T-API-09 | Domain-ownership bypass (scan a third party) | **[Gate]** Verified-domain requirement enforced in API, orchestrator, and egress proxy allow-list for the scan; proof only by DNS TXT or well-known file (no attestation, ADR-017); status + timestamps persisted; revalidated periodically and before every scan; tokens per (project, host), hashed, never reused across tenants; DNS TXT removal or domain transfer → `expired`, scans blocked; verification fetch uses SSRF-safe egress; apex does not verify subdomains |
+| T-API-10 | Crawler restriction abuse: robots override used without accountability, or domain verification treated as implicit override | **[Gate]** Default respects Disallow/crawl-delay; override requires admin+, reason, recorded in `config_snapshot` and `audit_logs`, disclosed in reports; verification never auto-enables override (ADR-018) |
+
+### 4.6 Sensitive evidence (A2)
+
+| ID | Threat | Controls |
+|---|---|---|
+| T-EVD-01 | Evidence stores PII/secrets | Password fields blanked; form values scrubbed by default; configurable redaction selectors; snippet truncation; evidence encrypted at rest (SSE); retention per org; deletion on project/org delete |
+| T-EVD-02 | Evidence viewed by unauthorized role | RBAC on evidence endpoints; signed URLs short TTL; audit log of evidence access for sensitive profiles |
+| T-EVD-03 | Evidence persists after customer revokes authorization | Revoke → purge job for profile sessions and, optionally, evidence |
+
+### 4.7 LLM data handling (TB5) — A6
+
+| ID | Threat | Controls | Verification |
+|---|---|---|---|
+| T-LLM-01 | Sensitive data sent to provider | **[Gate]** Off by default per org; allow-listed typed context builder (`RedactedFindingContext`); no cookies, headers, storage state, form values, credentials, or URLs with query strings/tokens; text truncated and scrubbed; provider region/retention terms documented | Canary test: send canaries through full pipeline, assert absent from prompt |
+| T-LLM-02 | Prompt injection from scanned page content steers output | Page text only as quoted data in a delimited block with explicit instruction hierarchy; structured output validated by Zod; AI cannot change classification/severity/confidence; no tools/side effects granted to the model; output rendered as text | Fixture page with injection strings |
+| T-LLM-03 | Hallucinated claims about affected user groups or fixes | Prompt requires evidence-grounded statements; "affected groups" must cite evidence fields; UI labels AI output; human verify note | Review + schema constraint |
+| T-LLM-04 | Provider outage or data-retention surprise | Independent queue, failure tolerant; per-org provider choice including self-hosted OpenAI-compatible |
+
+### 4.8 Guided-session channel (TB7)
+
+| ID | Threat | Controls |
+|---|---|---|
+| T-GS-01 | Hijack of the streaming channel | WebSocket token single-use, short-lived, bound to user+org+capture; origin check; TLS only; server-side idle timeout |
+| T-GS-02 | User enters credentials into a lookalike/redirected site | Remote browser locked to authorized domains plus declared IdP domains; URL shown in UI chrome rendered by us, not by the page |
+| T-GS-03 | Captured state includes cookies for unrelated domains | Filter storage state to allow-listed domains on confirm; discard the rest |
+| T-GS-04 | Over-long retention of the live browser | TTL, explicit cancel, auto-destroy and profile wipe |
+
+### 4.9 Insider and operational
+
+- DB/log access by operators exposes only ciphertext for A1; key access is separated from DB access (KMS IAM).
+- Audit logs append-only; admin actions on tenant data require a break-glass role with logging.
+- Backups encrypted; backups of `browser_sessions` follow the same key model; restore tests documented.
+- Secrets in CI come from the CI secret store; secret scanning in CI; no `.env` files committed (`.gitignore`).
+
+## 5. Security requirements derived (feed `TRACEABILITY_MATRIX`)
+
+SEC-01 SSRF layered controls · SEC-02 DNS pinning · SEC-03 redirect revalidation · SEC-04 credential encryption · SEC-05 secret redaction in logs/queues/LLM · SEC-06 browser isolation hardening · SEC-07 RLS + composite FKs + cross-tenant tests · SEC-08 domain authorization · SEC-09 CSRF/session/CORS/CSP · SEC-10 evidence redaction + retention · SEC-11 LLM minimization + injection handling · SEC-12 guided-session channel hardening · SEC-13 supply-chain controls · SEC-14 rate limits and quotas.
+
+## 6. Residual risks (accepted or open)
+
+| Risk | Status |
+|---|---|
+| Chromium 0-day escaping the sandbox | Mitigated by container isolation, patch cadence, no secrets beyond job scope; residual remains. |
+| Session material must be decryptable by workers | Inherent; mitigated by scope and memory-only handling. |
+| Remote-browser guided login cannot support hardware passkeys | Future-phase limitation; ADR-009 deferred. T-GS-* and session-credential threats (T-CRED session items) apply only when the auth phase is scheduled. |
+| Proxy cannot inspect inside TLS | Browser-layer redirect checks; residual TOCTOU limited by IP pinning. |
+| Screenshots may capture PII we fail to detect | Redaction is best-effort; retention + disclosure in UI. |
+| LLM provider handles redacted content | Opt-in, minimization, self-hosted option. |
+
+## 7. Review cadence
+Re-run this model when adding a new integration, a new discovery strategy, a new data flow to a third party, or before each phase gate. Independent penetration test before first production release (Phase 9).
