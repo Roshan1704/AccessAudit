@@ -11,16 +11,16 @@ Status: Draft v0.1 · Date: 2026-11-11 · Code lives in `packages/a11y-engine`, 
 
 ## 2. Components
 
-| Component | Responsibility |
-|---|---|
-| `AxeRunner` | Injects pinned axe-core into the page (and same-origin/iframes it can reach); runs configured tags (`wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`, `best-practice` per project settings); returns raw results (violations, incomplete, passes, inapplicable). |
-| `CustomRuleRunner` | Runs project-owned rules (§4) against a page state using Playwright + in-page evaluation. |
-| `InteractionTester` | Keyboard and focus-driven tests (§5). |
-| `RuleRegistry` | Maps `rule_id` → metadata, WCAG mappings, known limitations, remediation reference. Backed by `accessibility_rules` / `rule_versions`. |
-| `Normalizer` | Converts raw engine output into `RawFinding` with a common shape (rule, target, snippet, evidence, engine). |
-| `Validator` | Validation pipeline (§6): re-checks, deduplicates, grades confidence, assigns classification. |
-| `Fingerprinter` | Produces the stable finding identity (see DATABASE_DESIGN §5). |
-| `ManualTaskGenerator` | Emits manual verification tasks for criteria that cannot be decided automatically (§8). |
+| Component             | Responsibility                                                                                                                                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AxeRunner`           | Injects pinned axe-core into the page (and same-origin/iframes it can reach); runs configured tags (`wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`, `best-practice` per project settings); returns raw results (violations, incomplete, passes, inapplicable). |
+| `CustomRuleRunner`    | Runs project-owned rules (§4) against a page state using Playwright + in-page evaluation.                                                                                                                                                                   |
+| `InteractionTester`   | Keyboard and focus-driven tests (§5).                                                                                                                                                                                                                       |
+| `RuleRegistry`        | Maps `rule_id` → metadata, WCAG mappings, known limitations, remediation reference. Backed by `accessibility_rules` / `rule_versions`.                                                                                                                      |
+| `Normalizer`          | Converts raw engine output into `RawFinding` with a common shape (rule, target, snippet, evidence, engine).                                                                                                                                                 |
+| `Validator`           | Validation pipeline (§6): re-checks, deduplicates, grades confidence, assigns classification.                                                                                                                                                               |
+| `Fingerprinter`       | Produces the stable finding identity (see DATABASE_DESIGN §5).                                                                                                                                                                                              |
+| `ManualTaskGenerator` | Emits manual verification tasks for criteria that cannot be decided automatically (§8).                                                                                                                                                                     |
 
 Engines are pure functions of (page state, config) → results, so they are unit-testable against fixture HTML without a queue or DB.
 
@@ -36,22 +36,24 @@ Engines are pure functions of (page state, config) → results, so they are unit
 
 Each custom rule is a module with: stable `rule_id`, WCAG mapping, detector, validator hooks, documented limitations and test fixtures (positive, negative, edge). Initial set, in priority order:
 
-| Rule area | WCAG 2.2 | Detection approach | Typical classification |
-|---|---|---|---|
-| Focus visible | 2.4.7 | Tab through focusable elements; compare computed outline/box-shadow/background contrast of focused vs. unfocused state; screenshot-region evidence | confirmed when no visual change; otherwise strong_potential |
-| Focus not obscured | 2.4.11 | Focused element rect vs. sticky/fixed overlay rects | strong_potential (overlay may be transient) |
-| Target size (minimum) | 2.5.8 | Bounding boxes of pointer targets vs. 24×24 CSS px with spacing exception | confirmed for clear violations; exceptions (inline, equivalent control) → manual_verification |
-| Keyboard trap | 2.1.2 | Tab sequence bounded run; detect cycles that cannot leave a container without Escape | strong_potential; confirmed only with reproducible trace |
-| Reflow | 1.4.10 | Re-render at 320 CSS px width (secondary viewport); detect horizontal scroll of main content | strong_potential |
-| Text spacing | 1.4.12 | Inject WCAG spacing overrides; detect clipping/overlap | strong_potential |
-| Consistent navigation / identification | 3.2.3, 3.2.4 | Compare nav landmarks across pages of the same scan | informational / manual_verification |
-| Accessible authentication | 3.3.8 | Login-form heuristics (paste blocked, cognitive tests) | manual_verification |
-| Dragging movements | 2.5.7 | Detect drag-only widgets without alternative | manual_verification |
-| Redundant entry | 3.3.7 | Journey-based; requires recorded multi-step flow | manual_verification |
+| Rule area                              | WCAG 2.2     | Detection approach                                                                                                                                 | Typical classification                                                                        |
+| -------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Focus visible                          | 2.4.7        | Tab through focusable elements; compare computed outline/box-shadow/background contrast of focused vs. unfocused state; screenshot-region evidence | confirmed when no visual change; otherwise strong_potential                                   |
+| Focus not obscured                     | 2.4.11       | Focused element rect vs. sticky/fixed overlay rects                                                                                                | strong_potential (overlay may be transient)                                                   |
+| Target size (minimum)                  | 2.5.8        | Bounding boxes of pointer targets vs. 24×24 CSS px with spacing exception                                                                          | confirmed for clear violations; exceptions (inline, equivalent control) → manual_verification |
+| Keyboard trap                          | 2.1.2        | Tab sequence bounded run; detect cycles that cannot leave a container without Escape                                                               | strong_potential; confirmed only with reproducible trace                                      |
+| Reflow                                 | 1.4.10       | Re-render at 320 CSS px width (secondary viewport); detect horizontal scroll of main content                                                       | strong_potential                                                                              |
+| Text spacing                           | 1.4.12       | Inject WCAG spacing overrides; detect clipping/overlap                                                                                             | strong_potential                                                                              |
+| Consistent navigation / identification | 3.2.3, 3.2.4 | Compare nav landmarks across pages of the same scan                                                                                                | informational / manual_verification                                                           |
+| Accessible authentication              | 3.3.8        | Login-form heuristics (paste blocked, cognitive tests)                                                                                             | manual_verification                                                                           |
+| Dragging movements                     | 2.5.7        | Detect drag-only widgets without alternative                                                                                                       | manual_verification                                                                           |
+| Redundant entry                        | 3.3.7        | Journey-based; requires recorded multi-step flow                                                                                                   | manual_verification                                                                           |
 
 Rules that cannot be implemented reliably are not shipped as automated checks; they are manual tasks (§8).
 
-## 5. Interaction tests — DEFERRED beyond the axe-core MVP
+## 5. Interaction tests — IMPLEMENTED in Phase 2 (read-only subset)
+
+Implemented 2026-11-12: keyboard, focus, dialog, form, menu and dropdown, tabs and accordion, and dynamic content checks, run read-only (no form submission, no destructive clicks). Findings from these checks are potential or manual verification unless a reproducible trace confirms them. Verified on controlled accessible and inaccessible fixtures only; accuracy on real sites is unmeasured. The text below is the original design.
 
 - Run only under the read-only interaction policy from CRAWLER_ARCHITECTURE §6.
 - Keyboard traversal: ordered focus sequence recorded as `keyboard_trace` evidence (element identity, accessible name, focus-visible result).
@@ -75,13 +77,13 @@ RawFinding ─▶ dedupe(same rule+target+state) ─▶ re-evaluate in fresh con
 
 ### Classification
 
-| Class | Meaning | Contributes to |
-|---|---|---|
-| `confirmed` | Deterministic evidence of a failure | Counts, CI gating (default: serious/critical only) |
-| `strong_potential` | Likely failure, context could change outcome | Counts, never auto-gates CI |
-| `manual_verification` | Cannot be decided automatically | Manual task list |
-| `informational` | Best-practice or advisory | Reported separately |
-| `passed` | Check ran and passed | Coverage of what was tested |
+| Class                 | Meaning                                      | Contributes to                                     |
+| --------------------- | -------------------------------------------- | -------------------------------------------------- |
+| `confirmed`           | Deterministic evidence of a failure          | Counts, CI gating (default: serious/critical only) |
+| `strong_potential`    | Likely failure, context could change outcome | Counts, never auto-gates CI                        |
+| `manual_verification` | Cannot be decided automatically              | Manual task list                                   |
+| `informational`       | Best-practice or advisory                    | Reported separately                                |
+| `passed`              | Check ran and passed                         | Coverage of what was tested                        |
 
 ### Confidence (0.00–1.00)
 
@@ -110,6 +112,7 @@ Every finding includes (see DATABASE_DESIGN `findings`, `finding_occurrences`, `
 ## 10. Health indicator (not a compliance score)
 
 Reported as a set of counts and explicit gaps, never a single "% accessible":
+
 - confirmed / strong-potential counts by severity and WCAG principle;
 - coverage (pages/states/profiles/journeys audited vs. not);
 - manual tasks open;

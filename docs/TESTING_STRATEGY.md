@@ -12,15 +12,15 @@ Status: Draft v0.1 · Date: 2026-11-11
 
 ## 2. Test pyramid
 
-| Level | Tooling | Scope | Runs |
-|---|---|---|---|
-| Unit | Vitest | Pure logic: UrlPolicy, Normalizer, fingerprinting, classifier, crypto envelope, state machines, Zod schemas | every commit |
-| Integration | Vitest + Testcontainers (Postgres 16, Redis, MinIO) | Repositories under app DB roles, RLS, queues, API routes via Fastify `inject`, storage | every PR |
-| Contract | OpenAPI-derived checks | Response shapes, error codes, secret-free responses | every PR |
-| E2E | Playwright Test | Web UI ↔ API ↔ worker ↔ DB against fixture sites | PR (smoke) / nightly (full) |
-| Security | Dedicated suites (§4) | SSRF, tenancy, secrets, LLM canaries | every PR (gates) |
-| Self-accessibility | axe + manual checklist | Our own UI | every PR (automated) / per phase (manual) |
-| Performance | k6 (deferred; sanity check only) | Queue throughput, API latency, large scans | roadmap Phase 9 |
+| Level              | Tooling                                             | Scope                                                                                                       | Runs                                      |
+| ------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Unit               | Vitest                                              | Pure logic: UrlPolicy, Normalizer, fingerprinting, classifier, crypto envelope, state machines, Zod schemas | every commit                              |
+| Integration        | Vitest + Testcontainers (Postgres 16, Redis, MinIO) | Repositories under app DB roles, RLS, queues, API routes via Fastify `inject`, storage                      | every PR                                  |
+| Contract           | OpenAPI-derived checks                              | Response shapes, error codes, secret-free responses                                                         | every PR                                  |
+| E2E                | Playwright Test                                     | Web UI ↔ API ↔ worker ↔ DB against fixture sites                                                            | PR (smoke) / nightly (full)               |
+| Security           | Dedicated suites (§4)                               | SSRF, tenancy, secrets, LLM canaries                                                                        | every PR (gates)                          |
+| Self-accessibility | axe + manual checklist                              | Our own UI                                                                                                  | every PR (automated) / per phase (manual) |
+| Performance        | k6 (deferred; sanity check only)                    | Queue throughput, API latency, large scans                                                                  | roadmap Phase 9                           |
 
 ## 3. Per-layer expectations
 
@@ -32,23 +32,23 @@ Status: Draft v0.1 · Date: 2026-11-11
 
 ## 4. Mandatory security suites
 
-| Suite | Threat IDs | Method |
-|---|---|---|
-| SSRF encodings | T-SSRF-01 | Table-driven >60 forms (decimal/octal/hex IPs, IPv4-mapped IPv6, userinfo tricks, trailing dots, mixed case, unicode) against UrlPolicy; plus loopback fixture asserting zero inbound connections |
-| DNS rebinding | T-SSRF-02 | Fixture DNS server flipping answers; scan must not reach the internal fixture service |
-| Redirect / subresource | T-SSRF-03/04/05 | Fixture 302 to loopback/metadata IP; page JS fetch/WebSocket to internal; disallowed schemes |
-| Metadata endpoint | T-SSRF-06 | Fixture on metadata-range address must receive nothing |
-| Credential storage | T-CRED-01/02 | DB dump grep for plaintext canaries; AAD tamper and row-swap decryption must fail |
-| Secret leakage | T-CRED-03/04/08 | Canary secrets run through full e2e; scan logs, queue payloads, API responses, screenshots/DOM for canaries — must find none |
-| Auth state machine | T-CRED-07 | One attempt per verification; locked state halts; no auto-retry |
-| Domain binding | T-CRED-09, T-GS-03 | Session replay against non-authorized domain refused; storage state filtered |
-| Browser isolation | T-BRW-* | Downloads/permissions denied; contexts not shared across (scan, profile); tmpfs profile removed |
-| Cross-tenant matrix | T-TEN-01..04 | For every repository method and API route: tenant A attempts to read/write tenant B resources via repository, raw SQL under app role, and HTTP → must fail; job payload tamper rejected |
-| Authz / RBAC | T-API-05/06 | Role × endpoint matrix; API key scope ceilings |
-| CSRF / session / CORS | T-API-02 | Missing/forged token, cross-origin, fixation tests |
-| XSS from scanned content | T-API-04 | Fixture page with script/HTML payloads in titles, snippets, selectors; UI and report output escape them |
-| LLM minimization | T-LLM-01/02 | Canary data absent from constructed prompt; injection fixture cannot alter classification |
-| Guided-session channel | T-GS-01/04 | Token single-use, expiry, wrong-user, idle timeout |
+| Suite                    | Threat IDs         | Method                                                                                                                                                                                            |
+| ------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SSRF encodings           | T-SSRF-01          | Table-driven >60 forms (decimal/octal/hex IPs, IPv4-mapped IPv6, userinfo tricks, trailing dots, mixed case, unicode) against UrlPolicy; plus loopback fixture asserting zero inbound connections |
+| DNS rebinding            | T-SSRF-02          | Fixture DNS server flipping answers; scan must not reach the internal fixture service                                                                                                             |
+| Redirect / subresource   | T-SSRF-03/04/05    | Fixture 302 to loopback/metadata IP; page JS fetch/WebSocket to internal; disallowed schemes                                                                                                      |
+| Metadata endpoint        | T-SSRF-06          | Fixture on metadata-range address must receive nothing                                                                                                                                            |
+| Credential storage       | T-CRED-01/02       | DB dump grep for plaintext canaries; AAD tamper and row-swap decryption must fail                                                                                                                 |
+| Secret leakage           | T-CRED-03/04/08    | Canary secrets run through full e2e; scan logs, queue payloads, API responses, screenshots/DOM for canaries — must find none                                                                      |
+| Auth state machine       | T-CRED-07          | One attempt per verification; locked state halts; no auto-retry                                                                                                                                   |
+| Domain binding           | T-CRED-09, T-GS-03 | Session replay against non-authorized domain refused; storage state filtered                                                                                                                      |
+| Browser isolation        | T-BRW-*            | Downloads/permissions denied; contexts not shared across (scan, profile); tmpfs profile removed                                                                                                   |
+| Cross-tenant matrix      | T-TEN-01..04       | For every repository method and API route: tenant A attempts to read/write tenant B resources via repository, raw SQL under app role, and HTTP → must fail; job payload tamper rejected           |
+| Authz / RBAC             | T-API-05/06        | Role × endpoint matrix; API key scope ceilings                                                                                                                                                    |
+| CSRF / session / CORS    | T-API-02           | Missing/forged token, cross-origin, fixation tests                                                                                                                                                |
+| XSS from scanned content | T-API-04           | Fixture page with script/HTML payloads in titles, snippets, selectors; UI and report output escape them                                                                                           |
+| LLM minimization         | T-LLM-01/02        | Canary data absent from constructed prompt; injection fixture cannot alter classification                                                                                                         |
+| Guided-session channel   | T-GS-01/04         | Token single-use, expiry, wrong-user, idle timeout                                                                                                                                                |
 
 Failures in these suites block merge. Suites are listed by ID in the traceability matrix.
 
@@ -81,7 +81,7 @@ Order: install (`npm ci`) → typecheck → lint → unit → integration (Testc
 
 ## 10. Current status
 
-No application code exists yet; no tests have been executed. All matrix entries are `not executed`.
+Updated 2026-11-12. Phase 1, Phase 2 and the Phase 5 aggregates and UI work are implemented. Playwright ran 15 tests (phase1, phase2, phase5), all passed; phase5 runs axe-core on every UI route that does not need scan data. `npx vitest run` ran 21 files, 246 tests, all passed (needs `TEST_DATABASE_URL`, `TEST_WORKER_DATABASE_URL`, `TEST_REDIS_URL`; DB and Redis tests skip without them). Playwright e2e covers register to authenticated scan to findings and the quick check. Results per requirement are in TRACEABILITY_MATRIX. Not covered: screen readers, browsers other than Chrome, real DNS and real-site robots, container sandbox, GitHub CI run, accuracy on real sites.
 
 ## 11. Vertical-slice e2e and deferred suites (PM decision 2026-11-11)
 

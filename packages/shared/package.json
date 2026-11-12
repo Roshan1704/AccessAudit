@@ -5,5 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc -b" }
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "vitest": "5.1.0",
+    "zod": "^4.6.7"
+  }
 }

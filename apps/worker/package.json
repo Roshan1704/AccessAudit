@@ -3,5 +3,23 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "build": "tsc -b" }
+  "scripts": {
+    "build": "tsc -b",
+    "start": "tsx src/main.ts",
+    "seed-rules": "tsx src/seed-rules.ts"
+  },
+  "dependencies": {
+    "@accessaudit/a11y-engine": "0.0.0",
+    "@accessaudit/crawler": "0.0.0",
+    "@accessaudit/db": "0.0.0",
+    "@accessaudit/security": "0.0.0",
+    "@accessaudit/shared": "0.0.0",
+    "bullmq": "6.7.4",
+    "drizzle-orm": "^0.45.4",
+    "ioredis": "6.0.0",
+    "playwright-core": "1.65.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
 }

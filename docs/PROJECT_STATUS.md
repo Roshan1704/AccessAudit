@@ -1,43 +1,120 @@
 # Project Status Register
 
-Date: 2026-11-11 · Current phase: **0 — Foundation (PM decisions incorporated; awaiting explicit approval to start Phase 1)**
+Date: 2026-11-12 · Current phase: **5 (hardening, production readiness) built and awaiting Product Manager acceptance. Verdict in `docs/PRODUCTION_READINESS.md`: NOT ready until authenticated scanning (ADR-031) is verified by running migration 0010 and its tests. Nothing is committed.**
 
-## Completed
-- Repo/tooling scaffold (npm workspaces, TS project references, ESLint, Prettier, Vitest config, compose file for Postgres/Redis/MinIO).
-- Design docs, TRACEABILITY_MATRIX, PROJECT_STATUS, README.
-- PM decisions of 2026-11-11 reconciled across docs (see decision log).
+## Phase 5 progress (2026-11-12, in progress, uncommitted)
 
-## Not done (by instruction)
-- No application code, no frontend, no seed/dummy data.
-- `npm install` not run; no dependency installed; no lockfile; **no test executed**; no CI workflow yet.
-- All requirements: incomplete (see TRACEABILITY_MATRIX).
+Built: read-only `GET /orgs/{orgId}/overview` (latest completed scan per project, open confirmed and potential counts by severity, pending manual tasks, pages scanned versus not scanned, no composite score, no migration); organization overview page now shows these counts with a coverage caveat and keeps the getting-started checklist.
 
-## Decision log (PM-approved 2026-11-11)
-| # | Decision | Where recorded |
-|---|---|---|
-| 1 | ADR-009: remote isolated browser stays the future approach; authenticated scanning not in MVP; no pixel streaming or local helper now; extensible; passkey limits documented | ADR-009, AUTH Part B |
-| 2 | Domain verification: DNS TXT primary, well-known alternative; attestation removed; method/status/timestamps persisted; revalidation | ADR-017, DATABASE, THREAT T-API-09 |
-| 3 | robots.txt: respect Disallow + crawl-delay by default; auditable owner override; verification never implies override (reverses earlier draft) | ADR-018, CRAWLER §5, THREAT T-API-10 |
-| 4 | npm workspaces, no pnpm | ADR-001 |
-| 5 | Billing deferred; TOTP MFA not MVP blocker; secure auth baseline kept | ADR-019, AUTH Part A |
-| 6 | Roadmap reordered; deferred list | IMPLEMENTATION_ROADMAP |
-| 7 | Early vertical slice (plan) | IMPLEMENTATION_ROADMAP, TESTING §11 |
-| 8 | SaaS proportionality review | ADR-020, SYSTEM_ARCHITECTURE §10 |
-| 9 | Repo housekeeping: branch `main`, clean initial commit | git |
+| Check                                                                                       | Result                                                       |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `npx tsc -b`, `npx eslint . --max-warnings=0`, `npx prettier --check .`                     | passed                                                       |
+| `npx vitest run` (PowerShell, dev PostgreSQL, dev Redis)                                    | 21 files, 246 tests passed (4 new overview)                  |
+| Playwright `e2e/phase5.spec.ts`: axe (WCAG 2.x A/AA, 2.2 AA) on public and signed-in routes | 2 tests passed, zero violations                              |
+| Overview with real completed-scan data in the browser                                       | **not done** (API test covers the numbers)                   |
+| Scan list returns open confirmed and potential counts; project page table shows them        | built; API test passes; not viewed in browser with real data |
+| Empty/error/loading review of every data route                                              | done by code review; every route has all three branches      |
+| Playwright phase1, phase2, phase5 rerun after all Phase 5 edits                             | 15 passed (includes quick-check live success)                |
+| Manual keyboard, reflow (320 px) and reduced-motion pass in Chrome                          | **not done**                                                 |
+| Screen reader testing, browsers other than Chrome                                           | **not done**                                                 |
 
-## Open items / caveats
-- Dependency versions in package files are `^` ranges and **unverified** (registry lookup was denied); verify at first authorized install and generate the lockfile then.
-- Original reference document (master spec) is not present as a file in the repo; it exists only in the conversation. **Needs PM to supply the file to preserve under `docs/reference/`.** Docs cite it by Part number.
-- `infra/env.template` reviewed: placeholders only (`change_me`, empty keys); no real secrets.
-- Design docs are drafts pending PM review.
-- Domain-verification revalidation interval (30 days) and the DNS resolver used for verification are proposals.
-- Internal/staging hosts cannot be verified without DNS/well-known access; accepted MVP limitation.
+The axe e2e does not reach report, finding or manual-checklist routes with data; the Phase 2 scan chain covers the report route only.
 
-## Tech debt
-None in code. Doc-level: UUIDv7 undecided; partitioning deferred to measured volume.
+## Phase 4 progress (2026-11-12, uncommitted)
 
-## Security risks (residual, from threat model)
-Chromium sandbox escape; proxy cannot inspect TLS; screenshot PII redaction best-effort; LLM provider sees redacted content (opt-in); robots override is an owner-accountable control, not a technical barrier.
+Code complete: fingerprints, finding workflow, template-only AI provider, scan comparison and coverage, JSON/CSV/HTML/PDF reports, scheduled scans (ADR-027), email notifications (ADR-028). Migrations 0008 and 0009 are created but not applied. The full test suite has not been rerun since these slices; the last full run was 247/247 before them. See `docs/PHASE_4_REVIEW.md`.
 
-## Deferred features (kept, not deleted)
-Authenticated crawling; guided authentication; session recording/replay; advanced state discovery; custom rule builder; scheduled scanning; GitHub/Jira integrations; public API and CLI; billing/subscriptions; enterprise administration; TOTP MFA; customer SSO/OIDC; Firefox/WebKit; PDF accessibility; native mobile.
+## Phase 3 progress (2026-11-12, uncommitted)
+
+Built: three new heuristic form rules (identify input purpose, radio group without legend, required state only visual), and nine more controlled fixtures (25 in total: 21 inaccessible, 4 accessible).
+
+| Check                                   | Result                                                             |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| Engine suite (real Chrome)              | 2 files, 15 tests passed                                           |
+| Engine precision and recall on fixtures | tp=22, fp=0, fn=0; precision 1.000, recall 1.000 (own corpus only) |
+| Full Vitest (`--maxWorkers=2`)          | 247 passed                                                         |
+| Playwright phase1, phase2, phase5       | 15 passed, with API, worker (Chrome channel), Redis, PostgreSQL up |
+| Form submit testing                     | not done by policy (read-only)                                     |
+| Measurement on real sites               | not done                                                           |
+
+The one e2e failure seen during this phase was caused by the worker and Redis not running, not by product code.
+
+## Phase 2 verification evidence (2026-11-12, working tree on 3cfd471, uncommitted)
+
+| Check                                                                                                                                               | Result                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `npx tsc -b`                                                                                                                                        | passed, no output                                                                                 |
+| `npx eslint . --max-warnings=0`                                                                                                                     | passed, no output                                                                                 |
+| `npx vitest run` (PowerShell, dev PostgreSQL on 5433, dev Redis; `TEST_DATABASE_URL`, `TEST_WORKER_DATABASE_URL`, `TEST_REDIS_URL` set)             | 20 files, 242 tests passed, 0 failed                                                              |
+| Playwright (Chrome, real API, worker, Redis, PostgreSQL): authenticated scan chain, quick-check private-address refusal, quick-check page axe check | passed earlier in the phase (scan chain 6.1 s). Not rerun after the last formatting-only edits    |
+| Playwright: quick-check live success against example.com                                                                                            | **not rerun** after the shown-once change; the per-IP limit blocked the rerun (see known defects) |
+| Migrations applied to dev Postgres; 124 rules seeded                                                                                                | applied by the user, confirmed                                                                    |
+| `npm audit --omit=dev`                                                                                                                              | 0 vulnerabilities                                                                                 |
+| `npm audit` (full)                                                                                                                                  | 11 moderate, dev tooling only                                                                     |
+| Screen reader testing                                                                                                                               | **not done**                                                                                      |
+| Browsers other than Chrome                                                                                                                          | **not done**                                                                                      |
+| Real DNS and real-site robots.txt tests                                                                                                             | **not done** (injected fakes and local fixtures)                                                  |
+| Container-level browser sandbox                                                                                                                     | **not done** (apps run on the host)                                                               |
+| CI workflow `.github/workflows/ci.yml`                                                                                                              | **not executed** on GitHub                                                                        |
+
+Requirement-level results are in [TRACEABILITY_MATRIX](TRACEABILITY_MATRIX.md), "Phase 2 results".
+
+## Completed (Phase 2)
+
+- Domain-verified scans: SSRF gate, egress proxy with DNS pinning, per-request revalidation, isolated Chrome context, robots.txt policy with an admin-only audited override.
+- Crawler: frontier, sitemap and link discovery, coverage statuses, failed navigations recorded.
+- Engine: axe-core, versioned rule registry (124 rules), WCAG 2.2 mapping, DOM, computed CSS and accessible-name evidence, screenshots.
+- Read-only interaction tests: keyboard, focus, dialog, form, menu, tabs and accordion, dynamic content.
+- Normalization, deduplication by stable fingerprint, confidence, classification (confirmed, potential, manual verification), validation (no finding without evidence).
+- Manual verification tasks and checklist.
+- Scan API (start, cancel, list, detail, findings, review status, manual tasks), BullMQ worker, tenant isolation with RLS.
+- Web UI: scan start, report, finding detail with evidence, manual checklist, quick check. Design system in ADR-025.
+- Anonymous quick check (ADR-026): proof-of-work, per-IP and global limits, kill switch, shown-once result.
+
+## Incomplete requirements
+
+- Manual verification: task completion exists (status and note); reviewer assignment, history and re-verification are Phase 6.
+- Custom rules (REQ-A11Y-03) beyond the interaction checks: deferred.
+- Dashboard aggregates (REQ-PLAT-06), issue lifecycle (REQ-ISS-01), scan comparison (REQ-HIST-01), AI layer, reports, API keys: later phases.
+- Authenticated scanning: built under ADR-031 (API, worker and web UI); migration 0010 applied and API/worker tests pass; the UI e2e (`e2e/phase6.spec.ts`) is written but not yet run. Billing, enterprise RBAC, advanced MFA: deferred by decision.
+
+## Known defects
+
+- Quick-check live success e2e passed on rerun 2026-11-12 (Phase 5). The per-IP limit can still block repeated runs until `qc:*` keys expire.
+- Older rows in the first TRACEABILITY_MATRIX table still say "not executed" for items that the Phase 2 table now records.
+- No other confirmed open defects in tested code.
+
+## Technical debt
+
+- Rate limits for authentication remain in memory per process.
+- Mailer: `HttpMailer` exists (unit-tested with a fake fetch) but has not been used against a real provider; the log mailer is the default.
+- Web client types are hand-duplicated from API schemas; no frontend unit tests.
+- Two slice A tests are weak and could assert more.
+- Interaction-test precision and recall are measured only on controlled fixtures.
+- 11 moderate dev-tooling advisories; fixes need a typescript-eslint update or a drizzle-kit major, not applied.
+- Install scripts of argon2 and esbuild were not run (`--ignore-scripts`); native rebuilds are manual.
+
+## Security risks (residual)
+
+- Chromium escape; no container-level sandbox yet.
+- Egress proxy cannot inspect TLS; redirect policy is enforced in the browser layer.
+- Quick check from many addresses: bounded by global caps and the kill switch only (T-QC-05).
+- Per-IP limit depends on the trusted-proxy setting behind a proxy.
+- Screenshots may capture PII that redaction misses.
+- SameSite=Lax cookies assume web and API share a site.
+- Dev passwords are throwaway and must be rotated before shared use.
+
+## Deferred features
+
+Recorded-journey and MFA logins, custom rule builder, GitHub and Jira integrations, public API and CLI, billing, enterprise administration, TOTP MFA, AI explanations from a real model (interface and offline stub exist). Scheduling, scan comparison and PDF reports are built.
+
+## Decision log
+
+Decisions 1 to 9 (PM-approved 2026-11-11) unchanged. ADR-023 Vite + React. Added in Phase 2: ADR-025 UI stack and design system (plain CSS tokens, lucide-react, React Router, no score, text labels not colour alone); ADR-026 anonymous quick check. Merged scope for phases 2 to 4 approved by the PM. Installed with approval: playwright-core, axe-core, bullmq, ioredis. `@axe-core/playwright` is not installed.
+
+## Open items
+
+- Original master spec is not in the repo as a file; docs cite it by Part number.
+- Internal or staging hosts cannot be verified; accepted MVP limitation.
+- Vitest failed from Git Bash in this environment but passes from PowerShell. Use PowerShell.
+- Nothing is committed. A commit needs explicit approval.

@@ -1,0 +1,296 @@
+import { useEffect, useState } from 'react';
+import { CompareCard, CoverageLimits, ExportCard } from '@/components/ScanInsights';
+import {
+  ClassPill,
+  ConfidenceText,
+  Donut,
+  PageBars,
+  SeverityBars,
+  SeverityTag,
+} from '@/components/findings';
+import {
+  EmptyState,
+  ErrorAlert,
+  Loading,
+  Notice,
+  PageHeader,
+  SelectField,
+  StatusBadge,
+} from '@/components/ui';
+import {
+  CLASS_HELP,
+  CLASS_LABEL,
+  api,
+  type Classification,
+  type FindingRow,
+  type ScanDetail,
+} from '@/lib/api';
+import { Link, useParams } from '@/lib/nav';
+import { useAsync } from '@/lib/useAsync';
+import { useOrg } from '@/lib/useOrg';
+
+const CLASSES: Classification[] = [
+  'confirmed',
+  'strong_potential',
+  'manual_verification',
+  'informational',
+];
+
+function Findings({
+  orgId,
+  scanId,
+  pages,
+}: {
+  orgId: string;
+  scanId: string;
+  pages: ScanDetail['pages'];
+}) {
+  const [cls, setCls] = useState('');
+  const [sev, setSev] = useState('');
+  const [review, setReview] = useState('open');
+  const [pageId, setPageId] = useState('');
+  const qs = new URLSearchParams();
+  if (cls) qs.set('classification', cls);
+  if (sev) qs.set('severity', sev);
+  if (review) qs.set('review', review);
+  if (pageId) qs.set('pageId', pageId);
+  const q = qs.toString();
+  const list = useAsync(
+    () => api<{ findings: FindingRow[] }>('GET', `/orgs/${orgId}/scans/${scanId}/findings?${q}`),
+    `${scanId}?${q}`,
+  );
+  return (
+    <section aria-labelledby="findings-h">
+      <h2 id="findings-h">Findings</h2>
+      <div className="filters" role="group" aria-label="Filter findings">
+        <SelectField
+          label="Type"
+          value={cls}
+          onChange={setCls}
+          options={[
+            { value: '', label: 'All types' },
+            ...CLASSES.map((c) => ({ value: c, label: CLASS_LABEL[c] })),
+          ]}
+        />
+        <SelectField
+          label="Severity"
+          value={sev}
+          onChange={setSev}
+          options={[
+            { value: '', label: 'All severities' },
+            { value: 'critical', label: 'Critical' },
+            { value: 'serious', label: 'Serious' },
+            { value: 'moderate', label: 'Moderate' },
+            { value: 'minor', label: 'Minor' },
+          ]}
+        />
+        <SelectField
+          label="Review status"
+          value={review}
+          onChange={setReview}
+          options={[
+            { value: 'open', label: 'Open' },
+            { value: 'false_positive', label: 'False positive' },
+            { value: 'accepted_risk', label: 'Accepted risk' },
+            { value: 'fixed', label: 'Fixed' },
+            { value: '', label: 'Any' },
+          ]}
+        />
+        <SelectField
+          label="Page"
+          value={pageId}
+          onChange={setPageId}
+          options={[
+            { value: '', label: 'All pages' },
+            ...pages
+              .filter((p) => p.status === 'scanned')
+              .map((p) => ({ value: p.id, label: p.url })),
+          ]}
+        />
+      </div>
+      <div aria-live="polite">
+        {list.loading && !list.data ? <Loading label="Loading findings" /> : null}
+        {list.error ? <ErrorAlert error={list.error} onRetry={list.reload} /> : null}
+        {list.data && list.data.findings.length === 0 ? (
+          <EmptyState title="No findings match">Try different filters.</EmptyState>
+        ) : null}
+      </div>
+      {list.data && list.data.findings.length > 0 ? (
+        <ul className="finding-list">
+          {list.data.findings.map((f) => (
+            <li key={f.id} className="finding-item">
+              <div className="row">
+                <ClassPill value={f.classification} />
+                <SeverityTag value={f.severity} />
+                <span className="muted">
+                  <ConfidenceText value={f.confidence} />
+                </span>
+              </div>
+              <h3>
+                <Link href={`/orgs/${orgId}/findings/${f.id}`}>{f.ruleTitle}</Link>
+              </h3>
+              <p>{f.message}</p>
+              <p className="muted">
+                {f.wcagCriteria.length > 0 ? `WCAG ${f.wcagCriteria.join(', ')} · ` : ''}
+                {f.occurrences} occurrence{f.occurrences === 1 ? '' : 's'} · {f.pageUrl}
+                {f.reviewStatus !== 'open' ? ` · ${f.reviewStatus.replaceAll('_', ' ')}` : ''}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+export default function ScanReport() {
+  const { orgId } = useOrg();
+  const { scanId } = useParams<{ scanId: string }>();
+  const d = useAsync(() => api<ScanDetail>('GET', `/orgs/${orgId}/scans/${scanId}`), scanId);
+  const active = d.data?.scan.status === 'queued' || d.data?.scan.status === 'running';
+  const { reload } = d;
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(reload, 3000);
+    return () => {
+      clearInterval(t);
+    };
+  }, [active, reload]);
+
+  if (d.loading && !d.data) return <Loading label="Loading report" />;
+  if (d.error || !d.data)
+    return <ErrorAlert error={d.error ?? new Error('Not found.')} onRetry={d.reload} />;
+  const { scan, summary, pages } = d.data;
+  const bc = summary.byClassification;
+  const done = scan.status === 'completed';
+  const pending = summary.manualTasks['pending'] ?? 0;
+
+  return (
+    <>
+      <p style={{ margin: '0 0 0.75rem' }}>
+        <Link href={`/orgs/${orgId}/projects/${scan.projectId}`}>&larr; Back to project</Link>
+      </p>
+      <PageHeader
+        title="Scan report"
+        description={`${scan.startUrl} · WCAG ${scan.wcagVersion} ${scan.conformanceLevel}`}
+        actions={<StatusBadge status={scan.status} />}
+      />
+      {active ? (
+        <Notice kind="warn">Scan in progress. This page updates automatically.</Notice>
+      ) : null}
+      {scan.status === 'failed' ? (
+        <Notice kind="warn">
+          Scan failed: {(scan.failureReason ?? 'unknown').replaceAll('_', ' ')}.
+        </Notice>
+      ) : null}
+
+      {done || scan.status === 'cancelled' ? (
+        <>
+          <div className="kpis">
+            {CLASSES.map((c) => (
+              <div key={c} className={`kpi ${c}`}>
+                <strong>{bc[c] ?? 0}</strong>
+                <span>{CLASS_LABEL[c]}</span>
+                <p>{CLASS_HELP[c]}</p>
+              </div>
+            ))}
+          </div>
+          <Notice>
+            There is deliberately no single accessibility score. Automated testing finds only part
+            of WCAG issues, so a clean result does not prove conformance. Counts show open findings
+            only.
+          </Notice>
+
+          <div className="chart-grid" style={{ marginTop: '1rem' }}>
+            <div className="card">
+              <h2>Findings by type</h2>
+              <Donut
+                label="Open findings by type"
+                items={CLASSES.map((c) => ({ key: c, label: CLASS_LABEL[c], value: bc[c] ?? 0 }))}
+              />
+            </div>
+            <div className="card">
+              <h2>Severity</h2>
+              <SeverityBars counts={summary.bySeverity} />
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>Most affected pages</h2>
+            <PageBars pages={pages} />
+            <ul className="legend inline">
+              {CLASSES.slice(0, 3).map((c) => (
+                <li key={c}>
+                  <span className={`swatch ${c}`} aria-hidden="true" />
+                  {CLASS_LABEL[c]}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="card">
+            <h2>Manual verification</h2>
+            <p>
+              {pending > 0
+                ? `${String(pending)} check${pending === 1 ? '' : 's'} still need a person.`
+                : 'No manual checks pending.'}{' '}
+              <Link href={`/orgs/${orgId}/scans/${scan.id}/manual`}>Open the checklist</Link>
+            </p>
+          </div>
+
+          <div className="card">
+            <h2>Coverage</h2>
+            <p>
+              {summary.pagesScanned} page{summary.pagesScanned === 1 ? '' : 's'} scanned
+              {summary.pagesNotScanned > 0
+                ? `, ${String(summary.pagesNotScanned)} not scanned (blocked, excluded by robots.txt or failed).`
+                : '.'}{' '}
+              Interaction tests {scan.interactionTests ? 'were run' : 'were not run'}.
+            </p>
+            <CoverageLimits orgId={orgId} scanId={scan.id} />
+            <div className="table-wrap">
+              <table>
+                <caption className="sr-only">Pages in this scan</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Page</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Confirmed</th>
+                    <th scope="col">Potential</th>
+                    <th scope="col">Manual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pages.map((p) => (
+                    <tr key={p.id}>
+                      <th scope="row">
+                        {p.title ?? p.url}
+                        <div className="muted" style={{ fontWeight: 400 }}>
+                          {p.url}
+                        </div>
+                      </th>
+                      <td>
+                        <span style={{ textTransform: 'capitalize' }}>
+                          {p.status.replaceAll('_', ' ')}
+                        </span>
+                        {p.failureReason ? ` (${p.failureReason.replaceAll('_', ' ')})` : ''}
+                      </td>
+                      <td>{p.confirmed}</td>
+                      <td>{p.potential}</td>
+                      <td>{p.manual}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {done ? <CompareCard orgId={orgId} scanId={scan.id} /> : null}
+          {done ? <ExportCard orgId={orgId} scanId={scan.id} /> : null}
+
+          <Findings orgId={orgId} scanId={scan.id} pages={pages} />
+        </>
+      ) : null}
+    </>
+  );
+}

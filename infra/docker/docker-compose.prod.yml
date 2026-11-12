@@ -1,0 +1,99 @@
+# Production-shaped stack. Every secret comes from the environment; nothing has a default.
+# Run: docker compose -f infra/docker/docker-compose.prod.yml --env-file <your-env-file> up -d
+# Put a TLS-terminating reverse proxy in front of `api` and `web`; neither serves TLS itself.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: accessaudit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: accessaudit
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [backend]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U accessaudit']
+      interval: 10s
+      retries: 10
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes: [redisdata:/data]
+    networks: [backend]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      retries: 10
+  api:
+    build: { context: ../.., target: api }
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL (aa_api role)}
+      REDIS_URL: redis://redis:6379
+      SESSION_COOKIE_SECRET: ${SESSION_COOKIE_SECRET:?set SESSION_COOKIE_SECRET}
+      WEB_ORIGIN: ${WEB_ORIGIN:?set WEB_ORIGIN}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:?set API_PUBLIC_URL}
+      ALLOW_PRIVATE_TARGETS: 'false'
+      SCHEDULER: ${SCHEDULER:-on}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ['127.0.0.1:4000:4000']
+    networks: [backend, public]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      retries: 5
+  worker:
+    build: { context: ../.., target: worker }
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      WORKER_DATABASE_URL: ${WORKER_DATABASE_URL:?set WORKER_DATABASE_URL (aa_worker role)}
+      REDIS_URL: redis://redis:6379
+      SESSION_COOKIE_SECRET: ${SESSION_COOKIE_SECRET:?set SESSION_COOKIE_SECRET}
+      WEB_ORIGIN: ${WEB_ORIGIN:?set WEB_ORIGIN}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:?set API_PUBLIC_URL}
+      ALLOW_PRIVATE_TARGETS: 'false'
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [backend, scan-egress]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 4g
+  web:
+    build:
+      context: ../..
+      target: web
+      args: { VITE_API_URL: '${API_PUBLIC_URL:?set API_PUBLIC_URL}' }
+    restart: unless-stopped
+    ports: ['127.0.0.1:8080:8080']
+    networks: [public]
+networks:
+  backend: { internal: true }
+  public: {}
+  # The worker scans the public internet; restrict this network at the host firewall
+  # so it cannot reach internal ranges (the in-process egress proxy is the first layer).
+  scan-egress: {}
+volumes:
+  pgdata:
+  redisdata:

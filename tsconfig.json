@@ -7,7 +7,7 @@
     { "path": "packages/crawler" },
     { "path": "packages/a11y-engine" },
     { "path": "packages/ai" },
-    { "path": "apps/api" },
+    { "path": "apps/api/tsconfig.build.json" },
     { "path": "apps/worker" }
   ]
 }

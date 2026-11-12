@@ -5,5 +5,23 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc -b" }
+  "scripts": {
+    "build": "tsc -b",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts",
+    "db:seed": "tsx src/seed.ts"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.19.0"
+  },
+  "dependencies": {
+    "@accessaudit/security": "*",
+    "@accessaudit/shared": "*",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.13.0",
+    "vitest": "5.1.0",
+    "zod": "4.6.7"
+  }
 }

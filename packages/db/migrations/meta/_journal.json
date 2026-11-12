@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794387317251,
+      "tag": "0000_unknown_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794387343260,
+      "tag": "0001_rls_roles_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794394149333,
+      "tag": "0002_migrator_retention_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794394903002,
+      "tag": "0003_audit_logs_org_fk_restrict",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794418531151,
+      "tag": "0004_scan_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794422184044,
+      "tag": "0005_scan_config_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794500000000,
+      "tag": "0006_meta_tag_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0007_finding_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794700000000,
+      "tag": "0008_scan_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794800000000,
+      "tag": "0009_scan_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794900000000,
+      "tag": "0010_auth_profiles",
+      "breakpoints": true
+    }
+  ]
+}

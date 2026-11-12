@@ -12,3 +12,10 @@ secrets/
 .DS_Store
 playwright-report/
 test-results/
+
+# Logs
+*.log
+e2e-screenshots/
+
+# Local tooling
+.claude/

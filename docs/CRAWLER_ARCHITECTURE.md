@@ -1,9 +1,10 @@
 # Crawler Architecture
 
 Status: Draft v0.1 · Date: 2026-11-11 · Code lives in `packages/crawler`, executed by `apps/worker`.
-Prerequisite: `SECURITY_THREAT_MODEL.md` controls T-SSRF-*, T-BRW-*, T-CRED-06.
+Prerequisite: `SECURITY_THREAT_MODEL.md` controls T-SSRF-_, T-BRW-_, T-CRED-06.
 
 ## 1. Design goals
+
 1. One pipeline: every strategy emits `DiscoveryItem`s; nothing scans outside the pipeline.
 2. Auth profile is part of every item from day one.
 3. Honest coverage: every discovered URL ends in an explicit status; nothing disappears.
@@ -16,31 +17,32 @@ Prerequisite: `SECURITY_THREAT_MODEL.md` controls T-SSRF-*, T-BRW-*, T-CRED-06.
 // packages/shared
 interface DiscoveryItem {
   scanId: string;
-  authProfileId: string;      // anonymous profile is a real row
-  url: string;                // normalized
-  stateKey: string;           // 'base' or hash of interaction path
-  stateTrigger?: StateTrigger;// how to reach the state from base
-  source: 'seed'|'sitemap'|'link'|'dom'|'user'|'journey'|'redirect'|'state';
+  authProfileId: string; // anonymous profile is a real row
+  url: string; // normalized
+  stateKey: string; // 'base' or hash of interaction path
+  stateTrigger?: StateTrigger; // how to reach the state from base
+  source: 'seed' | 'sitemap' | 'link' | 'dom' | 'user' | 'journey' | 'redirect' | 'state';
   depth: number;
   parentUrl?: string;
   journeyId?: string;
 }
 ```
+
 Job id = `sha256(scanId|url|stateKey|authProfileId)`; duplicates are dropped by BullMQ and by the `crawled_pages`/`application_states` unique keys.
 
 ## 3. Components
 
-| Component | Responsibility |
-|---|---|
-| `UrlPolicy` (packages/security) | Parse, canonicalize, reject unsafe forms, scope check (authorized domains), pattern include/exclude. Pure and heavily tested. |
-| `Normalizer` | Lowercase host, strip fragments, default ports, resolve dot-segments, sort/filter query params per config (ignore tracking params; param allow-list), trailing-slash policy, `url_hash`. |
-| `Frontier` | Per-scan dedupe set (DB-backed, `crawled_pages` unique key) and priority: seeds/user URLs > sitemap > links by depth. Enforces max pages, depth, per-host crawl delay. |
-| Producers | `SeedProducer`, `SitemapProducer` (robots-declared + `/sitemap.xml`, index recursion, gzip, size caps, XML bomb guard), `LinkProducer` (rendered anchors incl. SPA `history` routes), `UserUrlProducer`, `JourneyProducer`, `StateProducer`. |
-| `SessionManager` | Provides an authenticated `BrowserContext` for `(scan, profile)`; health checks; detects expiry mid-scan (see AUTHENTICATION_ARCHITECTURE). |
-| `PageRunner` | Load page via proxy, wait strategy, capture evidence, invoke a11y engine, emit new items. |
-| `StateExplorer` | Safe interaction discovery on the loaded page (see §6). |
-| `CoverageTracker` | Writes coverage statuses and reasons; computes scan terminal state. |
-| `Orchestrator` | Scan lifecycle, per-org quotas, cancel, WAITING_FOR_AUTH handling, finalize. |
+| Component                       | Responsibility                                                                                                                                                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UrlPolicy` (packages/security) | Parse, canonicalize, reject unsafe forms, scope check (authorized domains), pattern include/exclude. Pure and heavily tested.                                                                                                                |
+| `Normalizer`                    | Lowercase host, strip fragments, default ports, resolve dot-segments, sort/filter query params per config (ignore tracking params; param allow-list), trailing-slash policy, `url_hash`.                                                     |
+| `Frontier`                      | Per-scan dedupe set (DB-backed, `crawled_pages` unique key) and priority: seeds/user URLs > sitemap > links by depth. Enforces max pages, depth, per-host crawl delay.                                                                       |
+| Producers                       | `SeedProducer`, `SitemapProducer` (robots-declared + `/sitemap.xml`, index recursion, gzip, size caps, XML bomb guard), `LinkProducer` (rendered anchors incl. SPA `history` routes), `UserUrlProducer`, `JourneyProducer`, `StateProducer`. |
+| `SessionManager`                | Provides an authenticated `BrowserContext` for `(scan, profile)`; health checks; detects expiry mid-scan (see AUTHENTICATION_ARCHITECTURE).                                                                                                  |
+| `PageRunner`                    | Load page via proxy, wait strategy, capture evidence, invoke a11y engine, emit new items.                                                                                                                                                    |
+| `StateExplorer`                 | Safe interaction discovery on the loaded page (see §6).                                                                                                                                                                                      |
+| `CoverageTracker`               | Writes coverage statuses and reasons; computes scan terminal state.                                                                                                                                                                          |
+| `Orchestrator`                  | Scan lifecycle, per-org quotas, cancel, WAITING_FOR_AUTH handling, finalize.                                                                                                                                                                 |
 
 ## 4. Flow
 
@@ -73,12 +75,14 @@ Job id = `sha256(scanId|url|stateKey|authProfileId)`; duplicates are dropped by 
 ## 6. Application state discovery
 
 Policy tiers (default tier 1):
-1. **Read-only:** interact only with elements classified safe: `button[aria-expanded]`, `[role=tab]`, `summary`, `[aria-haspopup]` menus, accordion headers, search-overlay triggers, dialog openers *whose classifier score says non-destructive*.
+
+1. **Read-only:** interact only with elements classified safe: `button[aria-expanded]`, `[role=tab]`, `summary`, `[aria-haspopup]` menus, accordion headers, search-overlay triggers, dialog openers _whose classifier score says non-destructive_.
 2. **Approved workflows:** project-level opt-in with named journeys in a test environment.
 
 Destructive classifier: blocks by accessible name/text/attributes/URL patterns (delete, remove, pay, buy, purchase, order, publish, submit, confirm, logout, sign out, unsubscribe, send, transfer, approve…, localized list configurable), by `form` submit buttons, by `type=submit`, by links leading to out-of-scope or non-GET targets. Also request-level guard during exploration: any non-GET/HEAD request issued as a result of an exploratory click is aborted and the state marked `requires_manual`.
 
 Exploration algorithm (bounded BFS per page):
+
 ```
 base state → candidates = enumerate interactive elements (by role, visible, enabled)
 for c in candidates ordered by stability/priority (cap N per page):
@@ -91,24 +95,25 @@ for c in candidates ordered by stability/priority (cap N per page):
         recurse (depth ≤ maxStateDepth)
    restore: Escape / toggle back / reload+replay trigger path (state replay)
 ```
+
 Each state stores its `trigger` so it can be replayed and so findings can say exactly how to reach it. Failed restore → reload page and replay path; if impossible, mark remaining candidates `not_audited` with reason.
 
 ## 7. Resource and safety limits (defaults, all configurable within hard caps)
 
-| Limit | Default | Hard cap |
-|---|---|---|
-| Max pages / scan | 200 | 5000 |
-| Max depth | 4 | 10 |
-| Nav timeout | 30 s | 120 s |
-| Page wall-clock | 120 s | 300 s |
-| Concurrency / scan | 3 | 10 |
-| Per-host delay | 250 ms | n/a |
-| Response body cap | 25 MB | 100 MB |
-| DOM nodes | 50,000 | 200,000 |
-| States / page | 25 | 100 |
-| Retries (network/5xx only) | 2 with backoff | 5 |
-| Redirects | 10 | 10 |
-Auth failures are **never** retried automatically (T-CRED-07).
+| Limit                                                          | Default        | Hard cap |
+| -------------------------------------------------------------- | -------------- | -------- |
+| Max pages / scan                                               | 200            | 5000     |
+| Max depth                                                      | 4              | 10       |
+| Nav timeout                                                    | 30 s           | 120 s    |
+| Page wall-clock                                                | 120 s          | 300 s    |
+| Concurrency / scan                                             | 3              | 10       |
+| Per-host delay                                                 | 250 ms         | n/a      |
+| Response body cap                                              | 25 MB          | 100 MB   |
+| DOM nodes                                                      | 50,000         | 200,000  |
+| States / page                                                  | 25             | 100      |
+| Retries (network/5xx only)                                     | 2 with backoff | 5        |
+| Redirects                                                      | 10             | 10       |
+| Auth failures are **never** retried automatically (T-CRED-07). |
 
 ## 8. Failure classification (written to `crawled_pages.error_class`)
 
@@ -117,23 +122,29 @@ Auth failures are **never** retried automatically (T-CRED-07).
 ## 9. Coverage computation
 
 Per scan, per profile: counts of discovered / audited / partial / inaccessible / requires-auth / requires-manual / excluded / failed pages; states discovered vs tested; journeys completed vs failed.
-- `COMPLETED` only if: frontier exhausted without limit hit, no `requires_auth`/`inaccessible`/`failed` beyond a configured tolerance of 0 for pages that were *discovered as in-scope*, and all requested profiles ran.
+
+- `COMPLETED` only if: frontier exhausted without limit hit, no `requires_auth`/`inaccessible`/`failed` beyond a configured tolerance of 0 for pages that were _discovered as in-scope_, and all requested profiles ran.
 - Otherwise `PARTIALLY_COMPLETED` with a machine-readable reasons list (e.g. `max_pages_reached`, `profile_X_session_expired`, `12_pages_timeout`).
 - UI shows counts and gap list, never a bare percentage, and always includes "undiscovered pages are unknown" note.
 
 ## 10. Cancellation, resume, idempotency
+
 - Cancel sets scan flag; in-flight jobs check at safe points; queue jobs for the scan are removed; completed pages retained.
 - Resume after `WAITING_FOR_AUTH`: orchestrator re-enqueues only items for that profile whose status is `requires_auth`.
 - Worker restart: stalled jobs retried; persistence idempotent via unique keys.
 
 ## 11. Browser/process model
+
 Worker process pool; each job uses a fresh BrowserContext from a per-org-isolated browser process (never shared across orgs). Browser launched with proxy flags, disabled extensions, no persistent profile on disk (tmpfs), downloads denied, permissions denied, `service workers` blocked unless needed, fixed viewport (+ secondary viewports for reflow tests in Phase 5).
 
 ## 12. Testing hooks
+
 Fixture sites under `fixtures/` (static pages, SPA, infinite scroll, sitemap variants, redirect loops, login flows incl. failure modes, MFA stub page, CAPTCHA stub, trap calendars, destructive buttons, rebinding DNS server). Loopback allowed only through the test-only SSRF override (compile-time flag; asserted off in production builds).
 
 ## 13. Out of scope for Phase 2–3
+
 Firefox/WebKit, PDF accessibility, native mobile apps, CAPTCHA solving, bypassing bot protection.
 
 ## 14. MVP scope note (PM decision 2026-11-11)
+
 The MVP crawler covers **public, anonymous** scanning of verified domains only. Sections describing authenticated crawling (§2 profile handling beyond the anonymous profile, SessionManager implementations), navigation journeys, and state exploration (§6, `StateProducer`, `JourneyProducer`) are **DEFERRED**: the interfaces (`SessionManager`, `StateExplorer`, producer contract, `DiscoveryItem.authProfileId`) are kept as extension points, but no implementation, tables or endpoints are built in the MVP. Robots policy is governed by ADR-018 (§5).
