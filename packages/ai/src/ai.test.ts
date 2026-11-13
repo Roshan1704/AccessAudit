@@ -36,12 +36,16 @@ describe('TemplateProvider', () => {
     const a = await p.explain(i);
     expect(a).toEqual(await p.explain(i));
     expect(a.source).toBe('template');
+    expect(a.guidance).toBe('rule-specific');
+    expect(a.disclaimer).toContain('not generated from your page');
     expect(a.howToFix[0]).toContain('alt');
   });
 
-  it('falls back to generic guidance for unknown rules', async () => {
+  it('falls back to generic guidance for unknown rules and says so', async () => {
     const a = await p.explain(buildExplainInput({ ...base, ruleId: 'custom:thing' }));
     expect(a.howToFix.length).toBeGreaterThan(0);
+    expect(a.guidance).toBe('generic');
+    expect(a.disclaimer).toContain('General guidance');
   });
 
   it('warns that unconfirmed findings need checking', async () => {

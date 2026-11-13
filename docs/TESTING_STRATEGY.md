@@ -1,5 +1,7 @@
 # Testing Strategy
 
+> Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
+
 Status: Draft v0.1 · Date: 2026-11-11
 
 ## 1. Rules of engagement
@@ -85,7 +87,7 @@ Updated 2026-11-12. Phase 1, Phase 2 and the Phase 5 aggregates and UI work are 
 
 ## 11. Vertical-slice e2e and deferred suites (PM decision 2026-11-11)
 
-**Vertical-slice e2e (planned, not executed):** Playwright test against the real stack and a fixture site: register → org → project → verify domain (DNS TXT stub resolver in test env / well-known file served by fixture) → start scan (robots respected) → crawl → axe findings with evidence → remediation shown → modify fixture → rescan → compare shows resolved/persistent/new. Owner: Phase 6 closes it; partial steps are exercised from Phase 1.
+**Vertical-slice e2e (partly executed; see [PROJECT_STATUS](PROJECT_STATUS.md) for current results; no separate fixture-site journey exists yet):** Playwright test against the real stack and a fixture site: register → org → project → verify domain (DNS TXT stub resolver in test env / well-known file served by fixture) → start scan (robots respected) → crawl → axe findings with evidence → remediation shown → modify fixture → rescan → compare shows resolved/persistent/new. Owner: Phase 6 closes it; partial steps are exercised from Phase 1.
 
 **Additional planned suites:** domain verification (token reuse across tenants, DNS TXT removal → expiry, revalidation before scan, apex vs. subdomain); robots policy (Disallow honored, crawl-delay honored, override recorded in config snapshot and audit log, verification alone does not bypass robots); account recovery (single-use, expiry, enumeration resistance).
 

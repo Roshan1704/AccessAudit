@@ -27,7 +27,8 @@ describe('compareRows', () => {
     const cur = [row('keep'), row('new')];
     const r = compareRows(base, cur, new Set(['https://a.example.com/']));
     expect(r.added.map((x) => x.fingerprint)).toEqual(['new']);
-    expect(r.persisting.map((x) => x.fingerprint)).toEqual(['keep']);
+    expect(r.unchanged.map((x) => x.fingerprint)).toEqual(['keep']);
+    expect(r.regressed).toEqual([]);
     expect(r.resolved.map((x) => x.fingerprint)).toEqual(['fixed-now']);
     expect(r.notRechecked.map((x) => x.fingerprint)).toEqual(['page-skipped']);
     expect(r.regressions.map((x) => x.fingerprint)).toEqual(['new']);
@@ -40,6 +41,22 @@ describe('compareRows', () => {
       new Set(),
     );
     expect(r.regressions.map((x) => x.fingerprint)).toEqual(['a']);
+    expect(r.regressed.map((x) => x.fingerprint)).toEqual(['a']);
+    expect(r.unchanged).toEqual([]);
+  });
+
+  it('never calls a finding resolved when its page was not scanned again', () => {
+    const r = compareRows([row('x')], [], new Set());
+    expect(r.resolved).toEqual([]);
+    expect(r.notRechecked.map((x) => x.fingerprint)).toEqual(['x']);
+  });
+
+  it('keeps the buckets disjoint', () => {
+    const base = [row('u'), row('r', { reviewStatus: 'fixed' }), row('g')];
+    const cur = [row('u'), row('r'), row('n')];
+    const r = compareRows(base, cur, new Set(['https://a.example.com/']));
+    const all = [...r.added, ...r.resolved, ...r.regressed, ...r.unchanged, ...r.notRechecked];
+    expect(all.map((x) => x.fingerprint).sort()).toEqual(['g', 'n', 'r', 'u']);
   });
 });
 
@@ -121,9 +138,9 @@ suite('compare API (integration)', () => {
     expect(r.body.comparison.counts).toEqual({
       added: 1,
       resolved: 1,
-      persisting: 1,
+      regressed: 0,
+      unchanged: 1,
       notRechecked: 0,
-      regressions: 1,
     });
 
     const first = await u.c.call('GET', `/orgs/${orgId}/scans/${old.scanId}/compare`);

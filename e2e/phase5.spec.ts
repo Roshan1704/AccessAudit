@@ -38,7 +38,7 @@ test('every signed-in route has no axe violations and overview shows honest empt
   await page.goto('/register');
   await page.getByLabel('Name').fill(user.name);
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
   await expectClean(page, '/orgs');
@@ -59,7 +59,7 @@ test('every signed-in route has no axe violations and overview shows honest empt
   await expectClean(page, 'projects');
 
   await page.goto(`/orgs/${orgId}`);
-  await expect(page.getByText('No completed scan yet.')).toBeVisible();
+  await expect(page.getByText('No completed scan yet.', { exact: true })).toBeVisible();
   await expect(page.getByText(/does not mean a site is accessible/)).toBeVisible();
   await expectClean(page, 'org overview (project, no scan)');
 

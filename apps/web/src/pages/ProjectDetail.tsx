@@ -127,7 +127,7 @@ function Domains({
   const base = `/orgs/${orgId}/projects/${projectId}/domains`;
   const list = useAsync(() => api<{ domains: Domain[] }>('GET', base), base);
   const [hostname, setHostname] = useState('');
-  const [method, setMethod] = useState('meta_tag');
+  const [method, setMethod] = useState('dns_txt');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [instr, setInstr] = useState<VerificationInstructions | null>(null);
@@ -281,9 +281,12 @@ function Domains({
               value={method}
               onChange={setMethod}
               options={[
-                { value: 'meta_tag', label: 'Add a meta tag to your home page (easiest)' },
+                { value: 'dns_txt', label: 'Add a DNS TXT record (recommended)' },
                 { value: 'well_known', label: 'Upload a small text file' },
-                { value: 'dns_txt', label: 'Add a DNS TXT record' },
+                {
+                  value: 'meta_tag',
+                  label: 'Add a meta tag (if you cannot edit DNS or serve a file)',
+                },
               ]}
             />
             <Button type="submit" busy={busy === 'add'}>
@@ -295,6 +298,11 @@ function Domains({
     </>
   );
 }
+
+const TABS = [
+  { id: 'scans', label: 'Scans' },
+  { id: 'settings', label: 'Settings' },
+] as const;
 
 export default function ProjectDetail() {
   const { orgId, org } = useOrg();
@@ -310,6 +318,7 @@ export default function ProjectDetail() {
   const [saved, setSaved] = useState(false);
   const [domainsVersion, setDomainsVersion] = useState(0);
   const [profilesVersion, setProfilesVersion] = useState(0);
+  const [tab, setTab] = useState<'scans' | 'settings'>('scans');
 
   if (!org)
     return (
@@ -358,50 +367,99 @@ export default function ProjectDetail() {
         <Link href={`/orgs/${orgId}/projects`}>&larr; All projects</Link>
       </p>
       <PageHeader title={project.name} description={project.baseUrl} />
-      {isAdmin ? (
-        <form className="card stack" onSubmit={(e) => void save(e)} noValidate>
-          <Field
-            label="Project name"
-            required
-            value={name ?? project.name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <ErrorAlert error={error} />
-          {saved ? <Notice>Saved.</Notice> : null}
-          <div className="row">
-            <Button type="submit" busy={busy}>
-              Save
-            </Button>
-            <Button type="button" variant="danger" disabled={busy} onClick={() => void remove()}>
-              Delete project
-            </Button>
-          </div>
-        </form>
-      ) : null}
-      <ScanPanel
-        orgId={orgId}
-        projectId={projectId}
-        baseUrl={project.baseUrl}
-        role={org.role}
-        domainsVersion={domainsVersion + profilesVersion}
-      />
-      <Schedules orgId={orgId} projectId={projectId} canManage={isAdmin} />
-      <AuthProfiles
-        orgId={orgId}
-        projectId={projectId}
-        canManage={isAdmin}
-        onChanged={() => {
-          setProfilesVersion((v) => v + 1);
-        }}
-      />
-      <Domains
-        orgId={orgId}
-        projectId={projectId}
-        canManage={isAdmin}
-        onChanged={() => {
-          setDomainsVersion((v) => v + 1);
-        }}
-      />
+      <div
+        role="tablist"
+        aria-label="Project sections"
+        className="row"
+        style={{ marginBottom: '1rem' }}
+      >
+        {TABS.map((t, i) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            className={tab === t.id ? 'btn' : 'btn secondary'}
+            onClick={() => {
+              setTab(t.id);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+              e.preventDefault();
+              const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+              if (!next) return;
+              setTab(next.id);
+              document.getElementById(`tab-${next.id}`)?.focus();
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id="panel-scans" aria-labelledby="tab-scans" hidden={tab !== 'scans'}>
+        <ScanPanel
+          orgId={orgId}
+          projectId={projectId}
+          baseUrl={project.baseUrl}
+          role={org.role}
+          domainsVersion={domainsVersion + profilesVersion}
+          onNeedDomains={() => {
+            setTab('settings');
+            setTimeout(() => {
+              const el = document.getElementById('domains');
+              el?.scrollIntoView({ block: 'start' });
+              el?.focus();
+            }, 0);
+          }}
+        />
+      </div>
+      <div
+        role="tabpanel"
+        id="panel-settings"
+        aria-labelledby="tab-settings"
+        hidden={tab !== 'settings'}
+      >
+        {isAdmin ? (
+          <form className="card stack" onSubmit={(e) => void save(e)} noValidate>
+            <Field
+              label="Project name"
+              required
+              value={name ?? project.name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <ErrorAlert error={error} />
+            {saved ? <Notice>Saved.</Notice> : null}
+            <div className="row">
+              <Button type="submit" busy={busy}>
+                Save
+              </Button>
+              <Button type="button" variant="danger" disabled={busy} onClick={() => void remove()}>
+                Delete project
+              </Button>
+            </div>
+          </form>
+        ) : null}
+        <Schedules orgId={orgId} projectId={projectId} canManage={isAdmin} />
+        <AuthProfiles
+          orgId={orgId}
+          projectId={projectId}
+          canManage={isAdmin}
+          onChanged={() => {
+            setProfilesVersion((v) => v + 1);
+          }}
+        />
+        <Domains
+          orgId={orgId}
+          projectId={projectId}
+          canManage={isAdmin}
+          onChanged={() => {
+            setDomainsVersion((v) => v + 1);
+          }}
+        />
+      </div>
     </>
   );
 }

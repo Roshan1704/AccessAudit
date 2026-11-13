@@ -157,6 +157,28 @@ SEC-01 SSRF layered controls · SEC-02 DNS pinning · SEC-03 redirect revalidati
 | LLM provider handles redacted content                        | Opt-in, minimization, self-hosted option.                                                                                                            |
 | Quick check abused from many IP addresses                    | Open. Bounded by global daily cap, queue cap and kill switch; per-IP limit alone does not stop a distributed client.                                 |
 
+## 6a. Implementation review (2026-11-13, code reading only)
+
+Scope: a read of the current API, session and secret-handling code by the developer who wrote it. It is not independent and it is not a penetration test. Nothing here was exploited or fuzzed.
+
+| Area                    | Observed in code                                                                                                                                                                                 | Gap or note                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tenant isolation        | Every route file except `auth`, `health` and `quick` calls `requireOrg`; data access goes through `withTenant` (row-level security). Cross-org report export returns 404 (tested).               | RLS is covered by tests for the routes that have them; `route-guard.test.ts` fails if a new route file lacks `requireOrg` (file-level check only, not per handler).           |
+| Public routes           | `quick` has per-route limits (30, 10 and 120 per minute), proof-of-work, global caps and a kill switch. `auth` routes are limited to 10 per minute.                                              | Limits are in memory per process, so they reset on restart and are not shared across instances (known debt).                                                                  |
+| Sessions                | Session cookie is `httpOnly`, `sameSite=lax`, `secure` only when `NODE_ENV=production`. Only hashes of session and CSRF tokens are stored. CSRF token is checked via `x-csrf-token` header.      | `SameSite=Lax` assumes web and API share a site. IP and user-agent are stored only as keyed hashes.                                                                           |
+| HTTP hardening          | `@fastify/helmet` defaults, CORS limited to `WEB_ORIGIN` with credentials, 64 KB body limit, `trustProxy: false`, request id on every response, log redaction configured.                        | `trustProxy: false` means per-IP limits see the proxy address if deployed behind one. Must be set at deployment.                                                              |
+| Secret storage          | `sealSecret` uses AES-256-GCM, random 12-byte IV, key id and a caller context bound as additional authenticated data, so a ciphertext cannot be moved to another record. Unit tested.            | Only `EnvKeyProvider` (keys from environment) exists; no KMS-backed provider. A unit test shows old ciphertext opens after the current key id changes; no re-wrap job exists. |
+| Output escaping         | HTML report escapes values and is served with `content-security-policy: default-src 'none'; style-src 'unsafe-inline'`. CSV neutralises formula prefixes (tested). No `innerHTML` in `apps/web`. | PDF output was not inspected for injected content beyond the shared escaping path.                                                                                            |
+| SSRF and URL validation | Unchanged since Phase 2: validation, egress proxy, DNS pinning, per-request revalidation (see section 4.1 and the Phase 2 test results).                                                         | Not re-tested in this review. Real DNS and real-site behaviour were never tested.                                                                                             |
+| Dependencies            | `npm audit --omit=dev` run 2026-11-13: 0 vulnerabilities.                                                                                                                                        | Full `npm audit` (dev tooling) not re-run; 11 moderate advisories recorded at Phase 2.                                                                                        |
+
+Open items from this review, none fixed in this phase:
+
+1. Done in this phase: `route-guard.test.ts` (file-level) and a key-id rotation unit test in `secret-box.test.ts`. A per-handler check and a re-wrap job are still open.
+2. Move auth and quick-check rate limits to Redis before running more than one API instance.
+3. Add a KMS-backed key provider and a re-wrap job before storing real customer credentials.
+4. Get an independent penetration test before the first production release (section 7).
+
 ## 7. Review cadence
 
 Re-run this model when adding a new integration, a new discovery strategy, a new data flow to a third party, or before each phase gate. Independent penetration test before first production release (Phase 9).

@@ -1,5 +1,7 @@
 # Implementation Roadmap
 
+> Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
+
 Status: Draft v0.2 (revised for PM decisions of 2026-11-11) · Date: 2026-11-11
 
 Rules: no phase starts without explicit PM approval; a phase closes only when its acceptance-criteria tests are **executed and passing** (TESTING_STRATEGY §1); each phase ends with a Product and Engineering Review Report. Before each feature: state business objective, user problem, approach, dependencies, acceptance criteria, risks.
@@ -24,7 +26,7 @@ A user can: (1) submit a verified public URL, (2) start a scan, (3) crawl suppor
 | Recommended remediation                                     | Phase 4 (static rule guidance) → Phase 7 (AI-assisted) | remediation panel from rule registry guidance, no AI needed    |
 | Rescan and compare                                          | Phase 6                                                | compare view: new/persistent/resolved/reappearing/unknown      |
 
-Rule: each phase's UI increment ships in that phase against the real stack; no mock data, no fake screens. The slice is complete when an e2e test runs steps 1–7 against a fixture site (TESTING_STRATEGY §5a). Result: not executed.
+Rule: each phase's UI increment ships in that phase against the real stack; no mock data, no fake screens. The slice is complete when an e2e test runs steps 1–7 against a fixture site (TESTING_STRATEGY §5a). Result: partly executed. The Playwright specs cover register, organization, project, scan, report and Quick Check against the real stack (17/17 on 2026-11-13, see PROJECT_STATUS). A single fixture-site journey does not exist: the SSRF gate refuses loopback addresses by design, so a local fixture site cannot be scanned without a test-only bypass, which was not added. The specs scan example.com with a seeded verified-domain row instead.
 
 ---
 

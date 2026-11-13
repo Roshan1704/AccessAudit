@@ -29,28 +29,33 @@ export function compareRows(
   current: Row[],
   currentScannedUrls: Set<string>,
 ): {
+  /** In the newer scan only. */
   added: Row[];
+  /** In the older scan, absent from the newer one, and its page was scanned again. */
   resolved: Row[];
-  persisting: Row[];
+  /** Present in both, but a person had marked it fixed in the older scan. */
+  regressed: Row[];
+  /** Present in both and not marked fixed. Disjoint from regressed. */
+  unchanged: Row[];
+  /** Absent from the newer scan only because its page was not scanned; status unknown. */
   notRechecked: Row[];
+  /** Alert set for notifications: new or returned confirmed/potential issues. */
   regressions: Row[];
 } {
   const baseBy = new Map(base.map((r) => [r.fingerprint, r]));
   const curBy = new Map(current.map((r) => [r.fingerprint, r]));
   const added = current.filter((r) => !baseBy.has(r.fingerprint));
   const persisting = current.filter((r) => baseBy.has(r.fingerprint));
+  const isReturned = (r: Row) => baseBy.get(r.fingerprint)?.reviewStatus === 'fixed';
+  const regressed = persisting.filter(isReturned);
+  const unchanged = persisting.filter((r) => !isReturned(r));
   const gone = base.filter((r) => !curBy.has(r.fingerprint));
   const resolved = gone.filter((r) => currentScannedUrls.has(r.pageUrl));
   const notRechecked = gone.filter((r) => !currentScannedUrls.has(r.pageUrl));
-  // Regression: new confirmed/potential issue, or one a person had marked fixed that is back.
-  const regressions = current.filter((r) => {
-    const prev = baseBy.get(r.fingerprint);
-    const real = r.classification === 'confirmed' || r.classification === 'strong_potential';
-    if (!real) return false;
-    if (!prev) return true;
-    return prev.reviewStatus === 'fixed';
-  });
-  return { added, resolved, persisting, notRechecked, regressions };
+  const real = (r: Row) =>
+    r.classification === 'confirmed' || r.classification === 'strong_potential';
+  const regressions = [...added, ...regressed].filter(real);
+  return { added, resolved, regressed, unchanged, notRechecked, regressions };
 }
 
 export type Tx = Parameters<Parameters<typeof withTenant>[2]>[0];
@@ -156,14 +161,14 @@ export function compareRoutes(app: FastifyInstance, deps: Deps): void {
           counts: {
             added: diff.added.length,
             resolved: diff.resolved.length,
-            persisting: diff.persisting.length,
+            regressed: diff.regressed.length,
+            unchanged: diff.unchanged.length,
             notRechecked: diff.notRechecked.length,
-            regressions: diff.regressions.length,
           },
           added: slim(diff.added),
           resolved: slim(diff.resolved),
+          regressed: slim(diff.regressed),
           notRechecked: slim(diff.notRechecked),
-          regressions: slim(diff.regressions),
         },
       };
     });

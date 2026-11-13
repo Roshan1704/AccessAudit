@@ -135,7 +135,7 @@ GET  /quick-check/:id           { state } ; a done result is returned once and t
 GET   /…/projects/{pid}/findings        filters: status, severity, classification, wcag, rule, url pattern, profile, assignee, q
 GET   /…/findings/{fid}                 # identity + latest occurrence + history
 GET   /…/findings/{fid}/occurrences
-GET   /…/findings/{fid}/explanation     # AI-generated, labeled; 404 if none
+GET   /…/findings/{fid}/explanation     # source template|ai, guidance rule-specific|generic; MVP is template only
 POST  /…/findings/{fid}/explanation     # (re)generate, if AI enabled
 PATCH /…/findings/{fid}                 # status, priority, dueDate, externalRefs
 POST  /…/findings/{fid}/comments        POST /…/findings/{fid}/assignments

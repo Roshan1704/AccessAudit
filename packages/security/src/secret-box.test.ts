@@ -24,3 +24,24 @@ describe('secret box', () => {
     expect(() => openSecret(keys, 'garbage', 'p1:password')).toThrow('Malformed sealed secret');
   });
 });
+
+describe('secret box key rotation', () => {
+  const k1 = Buffer.alloc(32, 1);
+  const k2 = Buffer.alloc(32, 2);
+  const ring = (current: string) => ({
+    keyId: current,
+    getKey(id: string = current): Buffer {
+      if (id === 'k1') return k1;
+      if (id === 'k2') return k2;
+      throw new Error(`Unknown key id: ${id}`);
+    },
+  });
+
+  it('opens old ciphertext after the current key changes; new ciphertext uses the new key', () => {
+    const old = sealSecret(ring('k1'), 'pw', 'c');
+    expect(openSecret(ring('k2'), old, 'c')).toBe('pw');
+    const fresh = sealSecret(ring('k2'), 'pw', 'c');
+    expect(fresh.split('.')[1]).toBe('k2');
+    expect(() => openSecret({ keyId: 'k1', getKey: () => k1 }, fresh, 'c')).toThrow();
+  });
+});

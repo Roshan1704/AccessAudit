@@ -39,6 +39,7 @@ export function ScanPanel({
   baseUrl,
   role,
   domainsVersion,
+  onNeedDomains,
 }: {
   orgId: string;
   projectId: string;
@@ -46,6 +47,8 @@ export function ScanPanel({
   role: Role;
   /** Changes whenever domains change, so the verification gate refreshes. */
   domainsVersion: number;
+  /** Lets a tabbed parent reveal the domains section before it is focused. */
+  onNeedDomains?: () => void;
 }) {
   const canScan = atLeast(role, 'member');
   const isAdmin = atLeast(role, 'admin');
@@ -60,6 +63,10 @@ export function ScanPanel({
   const hasAny = (domains.data?.domains.length ?? 0) > 0;
 
   function goToDomains() {
+    if (onNeedDomains) {
+      onNeedDomains();
+      return;
+    }
     const el = document.getElementById('domains');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -168,14 +175,7 @@ export function ScanPanel({
               </Button>
             </Notice>
           ) : null}
-          <Field
-            label="Start URL (optional)"
-            placeholder={baseUrl}
-            hint={`Leave empty to start from ${baseUrl}. Must be on a verified domain.`}
-            value={startUrl}
-            onChange={(e) => setStartUrl(e.target.value)}
-          />
-          <div className="form-grid cols-3">
+          <div className="form-grid">
             <Field
               label="Max pages (1 to 50)"
               type="number"
@@ -183,26 +183,6 @@ export function ScanPanel({
               max={50}
               value={maxPages}
               onChange={(e) => setMaxPages(e.target.value)}
-            />
-            <SelectField
-              label="WCAG version"
-              value={wcag}
-              onChange={setWcag}
-              options={[
-                { value: '2.2', label: 'WCAG 2.2' },
-                { value: '2.1', label: 'WCAG 2.1' },
-                { value: '2.0', label: 'WCAG 2.0' },
-              ]}
-            />
-            <SelectField
-              label="Level"
-              value={level}
-              onChange={setLevel}
-              options={[
-                { value: 'A', label: 'A' },
-                { value: 'AA', label: 'AA' },
-                { value: 'AAA', label: 'AAA' },
-              ]}
             />
           </div>
           {profiles.data && profiles.data.authProfiles.length > 0 ? (
@@ -216,37 +196,71 @@ export function ScanPanel({
               ]}
             />
           ) : null}
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={interaction}
-              onChange={(e) => setInteraction(e.target.checked)}
-            />
-            <span>
-              Run interaction tests (keyboard, dialogs, menus, tabs). Read-only: forms are never
-              submitted.
-            </span>
-          </label>
-          {isAdmin ? (
-            <>
+          <details className="add-panel">
+            <summary>Advanced options</summary>
+            <div className="stack">
+              <Field
+                label="Start URL (optional)"
+                placeholder={baseUrl}
+                hint={`Leave empty to start from ${baseUrl}. Must be on a verified domain.`}
+                value={startUrl}
+                onChange={(e) => setStartUrl(e.target.value)}
+              />
+              <div className="form-grid">
+                <SelectField
+                  label="WCAG version"
+                  value={wcag}
+                  onChange={setWcag}
+                  options={[
+                    { value: '2.2', label: 'WCAG 2.2' },
+                    { value: '2.1', label: 'WCAG 2.1' },
+                    { value: '2.0', label: 'WCAG 2.0' },
+                  ]}
+                />
+                <SelectField
+                  label="Level"
+                  value={level}
+                  onChange={setLevel}
+                  options={[
+                    { value: 'A', label: 'A' },
+                    { value: 'AA', label: 'AA' },
+                    { value: 'AAA', label: 'AAA' },
+                  ]}
+                />
+              </div>
               <label className="check-row">
                 <input
                   type="checkbox"
-                  checked={override}
-                  onChange={(e) => setOverride(e.target.checked)}
+                  checked={interaction}
+                  onChange={(e) => setInteraction(e.target.checked)}
                 />
-                <span>Ignore robots.txt (admin only, recorded in the audit log)</span>
+                <span>
+                  Run interaction tests (keyboard, dialogs, menus, tabs). Read-only: forms are never
+                  submitted.
+                </span>
               </label>
-              {override ? (
-                <Field
-                  label="Reason for ignoring robots.txt"
-                  hint="10 to 500 characters."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
+              {isAdmin ? (
+                <>
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={override}
+                      onChange={(e) => setOverride(e.target.checked)}
+                    />
+                    <span>Ignore robots.txt (admin only, recorded in the audit log)</span>
+                  </label>
+                  {override ? (
+                    <Field
+                      label="Reason for ignoring robots.txt"
+                      hint="10 to 500 characters."
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  ) : null}
+                </>
               ) : null}
-            </>
-          ) : null}
+            </div>
+          </details>
           {friendly ? (
             <Notice kind="warn">
               <p style={{ margin: 0 }}>{friendly}</p>

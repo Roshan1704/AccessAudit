@@ -20,7 +20,7 @@ async function register(page: Page, u: { name: string; email: string }) {
   await page.goto('/register');
   await page.getByLabel('Name').fill(u.name);
   await page.getByLabel('Email').fill(u.email);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
 }
@@ -41,11 +41,11 @@ test('protected routes redirect anonymous users to login', async ({ page }) => {
 test('form labels and validation errors on register', async ({ page }) => {
   await page.goto('/register');
   for (const l of ['Name', 'Email', 'Password']) {
-    await expect(page.getByLabel(l)).toBeVisible();
+    await expect(page.getByLabel(l, { exact: true })).toBeVisible();
   }
   await page.getByLabel('Name').fill('X');
   await page.getByLabel('Email').fill('not-an-email');
-  await page.getByLabel('Password').fill('short');
+  await page.getByLabel('Password', { exact: true }).fill('short');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.locator('.alert.error')).toBeVisible();
   await expect(page).toHaveURL(/\/register$/);
@@ -53,7 +53,7 @@ test('form labels and validation errors on register', async ({ page }) => {
 
 test('register, create organization and project, logout', async ({ page }) => {
   await register(page, userA);
-  await expect(page.getByText(`Signed in as ${userA.email}`)).toBeVisible();
+  await expect(page.getByText(userA.name, { exact: true })).toBeVisible();
 
   await page.getByLabel('Name').fill(`E2E Org ${run}`);
   await page.getByLabel('URL slug').fill(orgSlug);
@@ -77,7 +77,7 @@ test('register, create organization and project, logout', async ({ page }) => {
 test('invalid login shows an error and stays on login', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill(userA.email);
-  await page.getByLabel('Password').fill('definitely-wrong-password');
+  await page.getByLabel('Password', { exact: true }).fill('definitely-wrong-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.locator('.alert.error')).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
@@ -86,7 +86,7 @@ test('invalid login shows an error and stays on login', async ({ page }) => {
 test('login, keyboard navigation and visible focus', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill(userA.email);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/orgs$/);
 
@@ -134,7 +134,7 @@ test('another user cannot reach the organization', async ({ page }) => {
 test('expired session returns to login', async ({ page, context }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill(userA.email);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
   // Simulates expiry by dropping the session cookie; server-side expiry is covered by API tests.

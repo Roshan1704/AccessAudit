@@ -1,5 +1,7 @@
 # Production Readiness Report
 
+> Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
+
 Date: 2026-11-12 · Tree: uncommitted on 3cfd471 · **Verdict: NOT ready for production release.**
 
 Critical requirements from the Phase 5 brief are unimplemented, and the newest code has not been through a full test run. Nothing below should be read as a readiness claim.

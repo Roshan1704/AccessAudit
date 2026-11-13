@@ -253,6 +253,7 @@ export interface FindingDetail {
 export interface Explanation {
   source: 'template' | 'ai';
   provider: string;
+  guidance: 'rule-specific' | 'generic';
   summary: string;
   whyItMatters: string;
   howToFix: string[];
@@ -359,14 +360,14 @@ export interface CompareResult {
     counts: {
       added: number;
       resolved: number;
-      persisting: number;
+      regressed: number;
+      unchanged: number;
       notRechecked: number;
-      regressions: number;
     };
     added: CompareItem[];
     resolved: CompareItem[];
+    regressed: CompareItem[];
     notRechecked: CompareItem[];
-    regressions: CompareItem[];
   } | null;
 }
 export interface Coverage {

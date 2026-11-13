@@ -1,5 +1,7 @@
 # Traceability Matrix
 
+> Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
+
 Status: Draft v0.3 (Phase 1 results recorded) · Date: 2026-11-11 · Phase numbers follow IMPLEMENTATION_ROADMAP v0.2 (PM order). `Deferred` = kept in vision, not scheduled.
 
 Maps requirement → design → planned phase → planned tests → result. **Result is `not executed` until a test has actually run**; then record command, date and commit. Phase 1 rows were updated on 2026-11-11 from real runs. Phase 2 results are in the "Phase 2 results" table below; rows in this first table that say `not executed` for Phase 2 items (REQ-ROBOTS-01, REQ-CRAWL-_, REQ-COV-_, REQ-A11Y-01/02/04/05/06/07, REQ-ISS-02, SEC-02, SEC-03, SEC-06) are superseded by that table. Later-phase rows remain `not executed`.

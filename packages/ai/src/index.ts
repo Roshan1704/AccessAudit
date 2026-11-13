@@ -21,6 +21,8 @@ export const explanationSchema = z.object({
   /** Who wrote it. Always shown to the user so nobody mistakes a template for a model. */
   source: z.enum(['template', 'ai']),
   provider: z.string().max(100),
+  /** 'rule-specific': written for this rule. 'generic': fallback text that fits any rule. */
+  guidance: z.enum(['rule-specific', 'generic']),
   summary: z.string().max(1000),
   whyItMatters: z.string().max(1000),
   howToFix: z.array(z.string().max(500)).min(1).max(10),
@@ -160,13 +162,15 @@ export class TemplateProvider implements AiProvider {
     return Promise.resolve({
       source: 'template',
       provider: this.name,
+      guidance: g ? 'rule-specific' : 'generic',
       summary: `${input.ruleTitle}.${wcag}${hedge}`,
       whyItMatters:
         g?.why ?? 'This pattern can stop some people from perceiving or operating the content.',
       howToFix: g?.fix ?? GENERIC_FIX,
       verify: g?.verify ?? 'Re-scan and test the element with a keyboard and a screen reader.',
-      disclaimer:
-        'Generated from fixed templates for this rule, not from your page. Review before applying.',
+      disclaimer: g
+        ? 'Standard guidance written for this rule. It was not generated from your page, so check it against your code before applying.'
+        : 'General guidance that fits any rule. No specific guidance is written for this rule yet, and nothing here was generated from your page.',
     });
   }
 }

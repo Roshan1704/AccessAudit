@@ -36,6 +36,13 @@ const CLASSES: Classification[] = [
   'informational',
 ];
 
+function sortFindings(rows: FindingRow[], by: string): FindingRow[] {
+  if (by === 'occurrences') return [...rows].sort((a, b) => b.occurrences - a.occurrences);
+  if (by === 'confidence') return [...rows].sort((a, b) => b.confidence - a.confidence);
+  if (by === 'page') return [...rows].sort((a, b) => a.pageUrl.localeCompare(b.pageUrl));
+  return rows;
+}
+
 function Findings({
   orgId,
   scanId,
@@ -54,11 +61,14 @@ function Findings({
   if (sev) qs.set('severity', sev);
   if (review) qs.set('review', review);
   if (pageId) qs.set('pageId', pageId);
+  const [sort, setSort] = useState('severity');
   const q = qs.toString();
   const list = useAsync(
     () => api<{ findings: FindingRow[] }>('GET', `/orgs/${orgId}/scans/${scanId}/findings?${q}`),
     `${scanId}?${q}`,
   );
+  // The API returns severity order already; other orders are applied here on the loaded rows.
+  const rows = list.data ? sortFindings(list.data.findings, sort) : [];
   return (
     <section aria-labelledby="findings-h">
       <h2 id="findings-h">Findings</h2>
@@ -97,6 +107,17 @@ function Findings({
           ]}
         />
         <SelectField
+          label="Sort by"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: 'severity', label: 'Severity (highest first)' },
+            { value: 'occurrences', label: 'Most occurrences' },
+            { value: 'confidence', label: 'Highest confidence' },
+            { value: 'page', label: 'Page address' },
+          ]}
+        />
+        <SelectField
           label="Page"
           value={pageId}
           onChange={setPageId}
@@ -115,9 +136,9 @@ function Findings({
           <EmptyState title="No findings match">Try different filters.</EmptyState>
         ) : null}
       </div>
-      {list.data && list.data.findings.length > 0 ? (
+      {list.data && rows.length > 0 ? (
         <ul className="finding-list">
-          {list.data.findings.map((f) => (
+          {rows.map((f) => (
             <li key={f.id} className="finding-item">
               <div className="row">
                 <ClassPill value={f.classification} />
@@ -186,6 +207,17 @@ export default function ScanReport() {
 
       {done || scan.status === 'cancelled' ? (
         <>
+          <div className="card" aria-labelledby="priority-h" role="region">
+            <h2 id="priority-h">Fix first</h2>
+            <p>
+              {(summary.bySeverity['critical'] ?? 0) + (summary.bySeverity['serious'] ?? 0) > 0
+                ? `${String((summary.bySeverity['critical'] ?? 0) + (summary.bySeverity['serious'] ?? 0))} open finding${(summary.bySeverity['critical'] ?? 0) + (summary.bySeverity['serious'] ?? 0) === 1 ? ' is' : 's are'} critical or serious (${String(summary.bySeverity['critical'] ?? 0)} critical, ${String(summary.bySeverity['serious'] ?? 0)} serious). Start with confirmed issues.`
+                : 'No open critical or serious issues were found in the pages scanned.'}{' '}
+              {pending > 0
+                ? `${String(pending)} manual check${pending === 1 ? '' : 's'} still need a person.`
+                : ''}
+            </p>
+          </div>
           <div className="kpis">
             {CLASSES.map((c) => (
               <div key={c} className={`kpi ${c}`}>
@@ -227,6 +259,8 @@ export default function ScanReport() {
               ))}
             </ul>
           </div>
+
+          <Findings orgId={orgId} scanId={scan.id} pages={pages} />
 
           <div className="card">
             <h2>Manual verification</h2>
@@ -287,8 +321,6 @@ export default function ScanReport() {
 
           {done ? <CompareCard orgId={orgId} scanId={scan.id} /> : null}
           {done ? <ExportCard orgId={orgId} scanId={scan.id} /> : null}
-
-          <Findings orgId={orgId} scanId={scan.id} pages={pages} />
         </>
       ) : null}
     </>

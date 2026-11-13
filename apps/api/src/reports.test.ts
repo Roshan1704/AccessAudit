@@ -51,6 +51,38 @@ describe('report renderers', () => {
     expect(html).toContain('not a statement of conformance');
     expect(html).toContain('lang="en"');
   });
+
+  it('carries comparison and coverage in HTML and CSV', () => {
+    const gone = {
+      ruleId: 'axe:label',
+      ruleTitle: 'Form labels',
+      classification: 'confirmed',
+      severity: 'serious',
+      selector: '#a',
+      pageUrl: 'https://a.example.com/gone',
+    };
+    const d: ReportData = {
+      ...data(),
+      pages: { scanned: 1, notScanned: 1 },
+      notScannedPages: [
+        { url: 'https://a.example.com/x', status: 'skipped', failureReason: 'blocked_by_robots' },
+      ],
+      comparison: {
+        baselineScanId: 'b',
+        counts: { added: 1, resolved: 1, regressed: 0, unchanged: 0, notRechecked: 1 },
+        resolved: [gone],
+        notRechecked: [{ ...gone, pageUrl: 'https://a.example.com/other' }],
+      },
+    };
+    const html = renderHtml(d);
+    expect(html).toContain('Change since previous scan');
+    expect(html).toContain('Not rechecked (page not scanned this time');
+    expect(html).toContain('blocked by robots');
+    const csv = renderCsv(d);
+    expect(csv).toContain(',resolved');
+    expect(csv).toContain(',not_rechecked');
+    expect(renderHtml(data())).toContain('No earlier completed scan');
+  });
 });
 
 const url = process.env['TEST_DATABASE_URL'];
@@ -130,5 +162,98 @@ suite('report API (integration)', () => {
     expect(
       (await other.c.call('GET', `/orgs/${otherOrg}/scans/${scanId}/report?format=json`)).status,
     ).toBe(404);
+  });
+
+  it('report carries comparison with the previous scan and not-scanned reasons', async () => {
+    const u = await registerUser(h.app, 'rep-c');
+    const orgId = await createOrg(u.c, 'rep-c');
+    const host = `cmp-${Math.random().toString(36).slice(2, 8)}.example.com`;
+    const p = await u.c.call('POST', `/orgs/${orgId}/projects`, {
+      name: 'Cmp',
+      baseUrl: `https://${host}`,
+    });
+    const projectId = p.body.project.id as string;
+    const mk = async (
+      pagesIn: { path: string; status: 'scanned' | 'skipped'; reason?: string }[],
+      fps: { fp: string; path: string }[],
+    ) =>
+      withTenant(h.handle.db, { orgId }, async (tx) => {
+        const [s] = await tx
+          .insert(scans)
+          .values({
+            organizationId: orgId,
+            projectId,
+            status: 'completed',
+            startUrl: `https://${host}/`,
+          })
+          .returning({ id: scans.id });
+        const id = (s as { id: string }).id;
+        const ids = new Map<string, string>();
+        for (const pg of pagesIn) {
+          const [r] = await tx
+            .insert(crawledPages)
+            .values({
+              organizationId: orgId,
+              scanId: id,
+              url: `https://${host}${pg.path}`,
+              status: pg.status,
+              depth: 0,
+              ...(pg.reason ? { failureReason: pg.reason } : {}),
+            })
+            .returning({ id: crawledPages.id });
+          ids.set(pg.path, (r as { id: string }).id);
+        }
+        for (const f of fps)
+          await tx.insert(findings).values({
+            organizationId: orgId,
+            scanId: id,
+            pageId: ids.get(f.path) as string,
+            ruleId: 'axe:image-alt',
+            fingerprint: f.fp,
+            classification: 'confirmed',
+            confidence: 90,
+            severity: 'critical',
+            message: 'm',
+            selector: f.fp,
+          });
+        return id;
+      });
+    await mk(
+      [
+        { path: '/', status: 'scanned' },
+        { path: '/b', status: 'scanned' },
+      ],
+      [
+        { fp: 'keep', path: '/' },
+        { fp: 'fixed', path: '/' },
+        { fp: 'unknown', path: '/b' },
+      ],
+    );
+    const cur = await mk(
+      [
+        { path: '/', status: 'scanned' },
+        { path: '/b', status: 'skipped', reason: 'blocked_by_robots' },
+      ],
+      [
+        { fp: 'keep', path: '/' },
+        { fp: 'fresh', path: '/' },
+      ],
+    );
+    const j = await u.c.call('GET', `/orgs/${orgId}/scans/${cur}/report?format=json`);
+    expect(j.status).toBe(200);
+    expect(j.body.report.comparison.counts).toEqual({
+      added: 1,
+      resolved: 1,
+      regressed: 0,
+      unchanged: 1,
+      notRechecked: 1,
+    });
+    expect(j.body.report.notScannedPages).toEqual([
+      { url: `https://${host}/b`, status: 'skipped', failureReason: 'blocked_by_robots' },
+    ]);
+    const changes = (j.body.report.findings as { change?: string }[]).map((f) => f.change).sort();
+    expect(changes).toEqual(['new', 'unchanged']);
+    const html = await u.c.call('GET', `/orgs/${orgId}/scans/${cur}/report?format=html`);
+    expect(String(html.body)).toContain('blocked by robots');
   });
 });

@@ -107,51 +107,33 @@ export default function FindingDetail() {
         </Notice>
       ) : null}
       <div className="card">
-        <h2>What was found</h2>
-        <p>{f.message}</p>
+        <h2>Where it was found</h2>
         <dl className="kv">
-          <dt>Rule</dt>
-          <dd>{f.ruleId}</dd>
-          <dt>WCAG</dt>
-          <dd>{f.wcagCriteria.length > 0 ? f.wcagCriteria.join(', ') : 'Not mapped'}</dd>
+          <dt>Page</dt>
+          <dd>{f.pageUrl}</dd>
           <dt>Element</dt>
           <dd>{f.selector ? <code>{f.selector}</code> : 'Page level'}</dd>
           <dt>Occurrences</dt>
           <dd>{f.occurrences}</dd>
+          <dt>Rule</dt>
+          <dd>{f.ruleId}</dd>
         </dl>
+      </div>
+
+      <div className="card">
+        <h2>The problem</h2>
+        <p>{f.message}</p>
         <p>{f.ruleDescription}</p>
-        {f.helpUrl ? (
-          <p>
-            <a href={f.helpUrl} target="_blank" rel="noopener noreferrer">
-              How to fix (opens in a new tab)
-            </a>
-          </p>
-        ) : null}
       </div>
 
       <div className="card stack">
-        <h2>Explanation and fix</h2>
+        <h2>Who it affects</h2>
         {explanation.loading && !explanation.data ? <Loading label="Loading guidance" /> : null}
         <ErrorAlert error={explanation.error} onRetry={explanation.reload} />
         {explanation.data ? (
           <>
             <p>{explanation.data.explanation.summary}</p>
-            <p>
-              <strong>Why it matters:</strong> {explanation.data.explanation.whyItMatters}
-            </p>
-            <h3>How to fix</h3>
-            <ul>
-              {explanation.data.explanation.howToFix.map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ul>
-            <p>
-              <strong>How to check:</strong> {explanation.data.explanation.verify}
-            </p>
-            <p className="muted">
-              {explanation.data.explanation.source === 'ai' ? 'AI-generated' : 'Template guidance'}{' '}
-              ({explanation.data.explanation.provider}). {explanation.data.explanation.disclaimer}
-            </p>
+            <p>{explanation.data.explanation.whyItMatters}</p>
           </>
         ) : null}
       </div>
@@ -162,6 +144,49 @@ export default function FindingDetail() {
         {evidence.map((e) => (
           <EvidenceView key={e.id} {...e} />
         ))}
+      </div>
+
+      <div className="card">
+        <h2>WCAG context</h2>
+        <p>
+          {f.wcagCriteria.length > 0
+            ? `Success criteria: ${f.wcagCriteria.join(', ')}.`
+            : 'This rule is not mapped to a WCAG success criterion.'}
+        </p>
+        {f.helpUrl ? (
+          <p>
+            <a href={f.helpUrl} target="_blank" rel="noopener noreferrer">
+              Rule documentation (opens in a new tab)
+            </a>
+          </p>
+        ) : null}
+      </div>
+
+      <div className="card stack">
+        <h2>Standard guidance</h2>
+        {explanation.data ? (
+          <>
+            <h3>How to fix</h3>
+            <ul>
+              {explanation.data.explanation.howToFix.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+            <p>
+              <strong>How to check:</strong> {explanation.data.explanation.verify}
+            </p>
+            <p className="muted">
+              {explanation.data.explanation.source === 'ai'
+                ? 'AI-generated'
+                : explanation.data.explanation.guidance === 'generic'
+                  ? 'General guidance'
+                  : 'Rule-specific guidance'}{' '}
+              ({explanation.data.explanation.provider}). {explanation.data.explanation.disclaimer}
+            </p>
+          </>
+        ) : (
+          <p className="muted">Guidance is not available yet.</p>
+        )}
       </div>
 
       {tasks.length > 0 ? (
@@ -179,7 +204,12 @@ export default function FindingDetail() {
       ) : null}
 
       <div className="card stack">
-        <h2>Review</h2>
+        <h2>Workflow</h2>
+        <p className="muted">
+          This status is your team&apos;s decision. It is separate from scan results: a later scan
+          never changes it, and marking Fixed does not prove the issue is gone. Run a new scan to
+          verify.
+        </p>
         {canReview ? (
           <>
             <SelectField

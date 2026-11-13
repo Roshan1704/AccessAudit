@@ -20,7 +20,7 @@ async function axeViolations(page: Page): Promise<string[]> {
 
 const run = Date.now().toString(36);
 const password = `E2e-pass-${run}-Xy9!`;
-const widths = [320, 768, 1280];
+const widths = [320, 375, 768, 1024, 1280];
 
 async function overflow(page: Page): Promise<number> {
   return page.evaluate(
@@ -54,6 +54,14 @@ test('public pages and signed-in pages: titles, reflow, axe, keyboard', async ({
   await expect(page.locator('h1').first()).toBeVisible();
   await checkPage(page, 'home');
 
+  await page.goto('/quick-check');
+  await expect(page.locator('h1')).toBeVisible();
+  await checkPage(page, 'quick-check');
+
+  await page.goto('/forgot-password');
+  await expect(page.locator('h1')).toBeVisible();
+  await checkPage(page, 'forgot-password');
+
   await page.goto('/login');
   await expect(page.locator('h1')).toBeVisible();
   await checkPage(page, 'login');
@@ -72,7 +80,7 @@ test('public pages and signed-in pages: titles, reflow, axe, keyboard', async ({
 
   await page.getByLabel('Name').fill('UI Audit');
   await page.getByLabel('Email').fill(`ui-${run}@example.test`);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
   await checkPage(page, 'orgs-empty');
@@ -103,8 +111,12 @@ test('public pages and signed-in pages: titles, reflow, axe, keyboard', async ({
   await page.getByRole('button', { name: 'Create project' }).click();
   await page.getByRole('link', { name: 'Audit site' }).first().click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole('heading', { level: 2, name: 'Login profiles' })).toBeVisible();
   await checkPage(page, 'project-detail');
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Login profiles', exact: true }),
+  ).toBeVisible();
+  await checkPage(page, 'project-detail-settings');
 
   // Mobile menu: opens, Escape closes it and returns focus to the toggle.
   await page.setViewportSize({ width: 375, height: 800 });

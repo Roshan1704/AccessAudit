@@ -104,6 +104,8 @@ Every finding includes (see DATABASE_DESIGN `findings`, `finding_occurrences`, `
 
 ## 9. AI explanation layer boundaries
 
+MVP status: no language model is used. The only provider is `TemplateProvider`, which returns fixed, hand-written guidance per rule (or a generic fallback) and works with no key or network. The finding page titles it "Standard guidance" and states whether the text is rule-specific or general and that it was not generated from the page. The response field `guidance` is `rule-specific` or `generic`. The rest of this section describes the boundaries for a future model-backed provider.
+
 - Input: typed, allow-listed `RedactedFindingContext` only (rule id, WCAG text, sanitized snippet, role/name, no cookies/headers/URLs with queries/form values/credentials).
 - Output: schema-validated explanation, impact narrative, suggested remediation, code-fix suggestion — labeled AI-generated, stored in `ai_explanations`, separate from findings.
 - Prohibited: changing classification, severity, confidence or status; claiming compliance; asserting affected user groups without citing evidence fields.

@@ -40,8 +40,9 @@ test('quick check: one public page, real findings, nothing saved', async ({ page
     timeout: 120_000,
   });
   await expect(page.getByText('Checked page:')).toBeVisible();
-  await expect(page.getByText(/not saved/)).toBeVisible();
+  await expect(page.getByText(/not saved/).first()).toBeVisible();
   await expect(page.getByText('Confirmed violation').first()).toBeVisible();
+  await reflowAndShoot(page, 'quick-check-result');
 });
 
 test('quick check refuses a private address', async ({ page }) => {
@@ -63,7 +64,7 @@ test('authenticated scan: start, wait, review report, finding and manual tasks',
   await page.goto('/register');
   await page.getByLabel('Name').fill(user.name);
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
   await page.getByLabel('Name').fill(`Scan Org ${run}`);

@@ -47,6 +47,46 @@ function countText(m: SeverityCounts): string {
   return parts.length ? parts.join(', ') : 'none';
 }
 
+interface QueueItem {
+  project: OverviewProject;
+  weight: number;
+  reasons: string[];
+  href: string;
+}
+
+/** Work queue: projects ranked by what needs a person next. Quiet projects are left out. */
+function buildQueue(orgId: string, projects: OverviewProject[]): QueueItem[] {
+  const items: QueueItem[] = [];
+  for (const project of projects) {
+    const s = project.latestScan;
+    if (!s) {
+      items.push({
+        project,
+        weight: 1,
+        reasons: ['No completed scan yet. Run the first scan.'],
+        href: `/orgs/${orgId}/projects/${project.id}`,
+      });
+      continue;
+    }
+    const reasons: string[] = [];
+    const urgent = (s.confirmed.critical ?? 0) + (s.confirmed.serious ?? 0);
+    const urgentPotential = (s.potential.critical ?? 0) + (s.potential.serious ?? 0);
+    if (urgent > 0) reasons.push(`${String(urgent)} critical or serious confirmed`);
+    if (urgentPotential > 0)
+      reasons.push(`${String(urgentPotential)} critical or serious potential`);
+    if (s.manualTasksOpen > 0) reasons.push(`${String(s.manualTasksOpen)} manual checks pending`);
+    if (s.pagesNotScanned > 0) reasons.push(`${String(s.pagesNotScanned)} pages not scanned`);
+    if (reasons.length === 0) continue;
+    items.push({
+      project,
+      weight: urgent > 0 ? 4 : urgentPotential > 0 ? 3 : s.manualTasksOpen > 0 ? 2 : 1,
+      reasons,
+      href: `/orgs/${orgId}/scans/${s.id}`,
+    });
+  }
+  return items.sort((a, b) => b.weight - a.weight);
+}
+
 function ProjectSummary({ orgId, p }: { orgId: string; p: OverviewProject }) {
   const s = p.latestScan;
   return (
@@ -151,6 +191,26 @@ export default function OrgOverview() {
               report with evidence for every finding.
             </Step>
           </ol>
+        </section>
+      ) : null}
+
+      {hasProject && list ? (
+        <section className="card" aria-labelledby="queue-heading">
+          <h2 id="queue-heading">Needs attention</h2>
+          {buildQueue(orgId, list).length === 0 ? (
+            <p>
+              Nothing waiting. This is based on the latest scans only and does not mean the sites
+              are accessible.
+            </p>
+          ) : (
+            <ul>
+              {buildQueue(orgId, list).map((i) => (
+                <li key={i.project.id}>
+                  <Link href={i.href}>{i.project.name}</Link>: {i.reasons.join(', ')}.
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       ) : null}
 

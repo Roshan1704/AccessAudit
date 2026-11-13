@@ -12,6 +12,32 @@ export interface ReportFinding {
   occurrences: number;
   reviewStatus: string;
   pageUrl: string;
+  /** Versus the previous completed scan. Absent when there is nothing to compare with. */
+  change?: 'new' | 'regressed' | 'unchanged';
+}
+
+export interface ReportGone {
+  ruleId: string;
+  ruleTitle: string;
+  classification: string;
+  severity: string;
+  selector: string | null;
+  pageUrl: string;
+}
+
+export interface ReportComparison {
+  baselineScanId: string;
+  counts: {
+    added: number;
+    resolved: number;
+    regressed: number;
+    unchanged: number;
+    notRechecked: number;
+  };
+  /** Page rescanned and the issue is gone. */
+  resolved: ReportGone[];
+  /** Page was not scanned this time, so the issue's state is unknown. */
+  notRechecked: ReportGone[];
 }
 
 export interface ReportData {
@@ -26,6 +52,10 @@ export interface ReportData {
     finishedAt: string | null;
   };
   pages: { scanned: number; notScanned: number };
+  /** Pages that were not scanned, with the reason. */
+  notScannedPages?: { url: string; status: string; failureReason: string | null }[];
+  /** Null when the project has no earlier completed scan. */
+  comparison?: ReportComparison | null;
   manualTasks: { total: number; pending: number };
   findings: ReportFinding[];
 }
@@ -61,6 +91,7 @@ export function renderCsv(d: ReportData): string {
     'confidence',
     'review_status',
     'message',
+    'change',
   ];
   const lines = [head.join(',')];
   for (const f of d.findings)
@@ -77,10 +108,35 @@ export function renderCsv(d: ReportData): string {
         f.confidence,
         f.reviewStatus,
         f.message,
+        f.change ?? '',
       ]
         .map(csvCell)
         .join(','),
     );
+  // Findings absent from this scan stay visible so CSV matches the other formats.
+  const gone = (rows: ReportGone[], change: string) =>
+    rows.map((g) =>
+      [
+        g.classification,
+        g.severity,
+        g.ruleId,
+        g.ruleTitle,
+        '',
+        g.pageUrl,
+        g.selector ?? '',
+        '',
+        '',
+        '',
+        '',
+        change,
+      ]
+        .map(csvCell)
+        .join(','),
+    );
+  if (d.comparison) {
+    lines.push(...gone(d.comparison.resolved, 'resolved'));
+    lines.push(...gone(d.comparison.notRechecked, 'not_rechecked'));
+  }
   return `${lines.join('\r\n')}\r\n`;
 }
 
@@ -98,6 +154,51 @@ const GROUPS: { key: string; title: string; note: string }[] = [
   },
   { key: 'informational', title: 'Informational', note: 'Context only. Not failures.' },
 ];
+
+function goneList(title: string, note: string, rows: ReportGone[], total: number): string {
+  if (total === 0) return '';
+  const items = rows
+    .map(
+      (g) =>
+        `<li>${esc(g.ruleTitle)} (${esc(g.severity)}) on ${esc(g.pageUrl)}${g.selector ? ` <code>${esc(g.selector)}</code>` : ''}</li>`,
+    )
+    .join('');
+  return `<h3>${esc(title)} (${String(total)})</h3><p>${esc(note)}</p><ul>${items}</ul>`;
+}
+
+function renderChange(d: ReportData): string {
+  const c = d.comparison;
+  if (!c)
+    return '<section><h2>Change since previous scan</h2><p>No earlier completed scan of this project to compare with.</p></section>';
+  return `<section><h2>Change since previous scan</h2>
+<p>Findings are matched by rule, element and page path.</p>
+<ul>
+<li>New: ${String(c.counts.added)}</li>
+<li>Resolved (page rescanned, issue gone): ${String(c.counts.resolved)}</li>
+<li>Regressed (marked fixed, found again): ${String(c.counts.regressed)}</li>
+<li>Unchanged: ${String(c.counts.unchanged)}</li>
+<li>Not rechecked (page not scanned this time, status unknown): ${String(c.counts.notRechecked)}</li>
+</ul>
+${goneList('Resolved findings', 'The page was scanned again and the issue was not found.', c.resolved, c.counts.resolved)}
+${goneList('Not rechecked', 'These are not resolved. Their pages were not scanned this time.', c.notRechecked, c.counts.notRechecked)}
+</section>`;
+}
+
+function renderCoverage(d: ReportData): string {
+  const pages = d.notScannedPages ?? [];
+  const list =
+    pages.length === 0
+      ? ''
+      : `<h3>Pages not scanned</h3><ul>${pages
+          .map(
+            (p) =>
+              `<li>${esc(p.url)}: ${esc((p.failureReason ?? p.status).replaceAll('_', ' '))}</li>`,
+          )
+          .join('')}</ul>`;
+  return `<section><h2>Coverage</h2>
+<p>${String(d.pages.scanned)} scanned, ${String(d.pages.notScanned)} not scanned (limit ${String(d.scan.maxPages)}). Only pages reachable without logging in are covered unless a login profile was used. Complex widgets need manual testing.</p>
+${list}</section>`;
+}
 
 export function renderHtml(d: ReportData): string {
   const count = (k: string) => d.findings.filter((f) => f.classification === k).length;
@@ -135,6 +236,8 @@ th{background:#eee}code{font-size:12px}
 <li>Manual checks: ${String(count('manual_verification'))} findings, ${String(d.manualTasks.pending)} of ${String(d.manualTasks.total)} tasks still pending</li>
 <li>Pages scanned: ${String(d.pages.scanned)}; pages not scanned: ${String(d.pages.notScanned)} (limit ${String(d.scan.maxPages)})</li>
 </ul>
+${renderChange(d)}
+${renderCoverage(d)}
 ${sections}
 </body></html>`;
 }

@@ -141,8 +141,9 @@ function Result({ r }: { r: QuickResult }) {
       <div className="cta-card">
         <h3>Want the whole site?</h3>
         <p>
-          Accounts can verify a domain, crawl many pages, run interaction tests, keep history and
-          track fixes.
+          This check covered one page and was not saved. With an account you verify your domain,
+          then scan many pages, run interaction tests, keep a history, compare scans over time and
+          assign and track fixes.
         </p>
         <Link href="/register">Create a free account</Link>
       </div>
@@ -218,6 +219,20 @@ export default function QuickCheck() {
         Check one public page without an account. Nothing is saved. Only passive checks run: the
         page is loaded and analysed, nothing is clicked or submitted.
       </p>
+      <section className="card" aria-labelledby="qc-what">
+        <h2 id="qc-what">What this check does and does not do</h2>
+        <ul>
+          <li>It tests a single page, as a visitor who is not signed in would see it.</li>
+          <li>
+            Results are shown once. Nothing is stored, so there is no history or comparison here.
+          </li>
+          <li>
+            Automated checks find only part of WCAG issues. A clean result does not prove the page
+            is accessible.
+          </li>
+          <li>For several pages, saved reports and fix tracking, create an account.</li>
+        </ul>
+      </section>
       <form className="card stack" onSubmit={(e) => void run(e)} noValidate>
         <Field
           label="Page address"

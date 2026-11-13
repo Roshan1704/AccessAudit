@@ -99,13 +99,15 @@ export function CompareCard({ orgId, scanId }: { orgId: string; scanId: string }
             Findings are matched by rule, element and page path.
           </p>
           <ul>
-            <li>New: {c.counts.added}</li>
-            <li>Resolved: {c.counts.resolved}</li>
-            <li>Still present: {c.counts.persisting}</li>
-            <li>Regressions (new or reopened real issues): {c.counts.regressions}</li>
-            <li>Not rechecked (page not scanned this time): {c.counts.notRechecked}</li>
+            <li>New (not in the previous scan): {c.counts.added}</li>
+            <li>Resolved (page rescanned, issue gone): {c.counts.resolved}</li>
+            <li>Regressed (marked fixed, found again): {c.counts.regressed}</li>
+            <li>Unchanged (still present): {c.counts.unchanged}</li>
+            <li>
+              Not rechecked (page not scanned this time, status unknown): {c.counts.notRechecked}
+            </li>
           </ul>
-          <ItemList title="Regressions" items={c.regressions} total={c.counts.regressions} />
+          <ItemList title="Regressed findings" items={c.regressed} total={c.counts.regressed} />
           <ItemList title="New findings" items={c.added} total={c.counts.added} />
           <ItemList title="Resolved findings" items={c.resolved} total={c.counts.resolved} />
           <ItemList title="Not rechecked" items={c.notRechecked} total={c.counts.notRechecked} />
@@ -127,6 +129,18 @@ export function CoverageLimits({ orgId, scanId }: { orgId: string; scanId: strin
         <Notice kind="warn">
           The page limit was reached, so some pages of the site may not have been scanned.
         </Notice>
+      ) : null}
+      {r.data.notScannedPages.length > 0 ? (
+        <>
+          <h3>Pages not scanned</h3>
+          <ul>
+            {r.data.notScannedPages.map((p) => (
+              <li key={p.url}>
+                {p.url}: {(p.failureReason ?? p.status).replaceAll('_', ' ')}
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
       <h3>What this scan does not cover</h3>
       <ul>

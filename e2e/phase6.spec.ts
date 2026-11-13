@@ -21,7 +21,7 @@ test('login profile section: empty state, form, rejected input, no axe violation
   await page.goto('/register');
   await page.getByLabel('Name').fill('E2E Profiles');
   await page.getByLabel('Email').fill(`profiles-${run}@example.test`);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
 
@@ -39,10 +39,15 @@ test('login profile section: empty state, form, rejected input, no axe violation
   await page.getByRole('link', { name: 'Profiles site' }).first().click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
 
-  await expect(page.getByRole('heading', { level: 2, name: 'Login profiles' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Login profiles', exact: true }),
+  ).toBeVisible();
   await expect(page.getByText('No login profiles')).toBeVisible();
   // No profiles yet, so the scan form offers no login choice.
   await expect(page.getByLabel('Sign in with')).toHaveCount(0);
+
+  await page.getByText('Add a login profile', { exact: true }).click();
 
   // The password field is masked and the form is labelled.
   await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'password');
