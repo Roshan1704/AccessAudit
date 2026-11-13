@@ -43,19 +43,59 @@ function sortFindings(rows: FindingRow[], by: string): FindingRow[] {
   return rows;
 }
 
+interface Preset {
+  n: number;
+  cls: string;
+  sev: string;
+}
+
+const PAGE_SIZE = 25;
+
+const REASON_LABEL: Record<string, string> = {
+  excluded_by_robots: 'Excluded by robots.txt',
+  page_cap: 'Not scanned: page limit reached',
+};
+
+function reasonOf(p: { status: string; failureReason: string | null }): string {
+  const r = p.failureReason ?? '';
+  return REASON_LABEL[r] ?? (r ? r.replaceAll('_', ' ') : p.status.replaceAll('_', ' '));
+}
+
+function pagePath(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.pathname}${u.search}` || '/';
+  } catch {
+    return url;
+  }
+}
+
 function Findings({
   orgId,
   scanId,
   pages,
+  preset,
 }: {
   orgId: string;
   scanId: string;
   pages: ScanDetail['pages'];
+  preset: Preset;
 }) {
   const [cls, setCls] = useState('');
   const [sev, setSev] = useState('');
   const [review, setReview] = useState('open');
   const [pageId, setPageId] = useState('');
+  const [shown, setShown] = useState(PAGE_SIZE);
+  useEffect(() => {
+    if (preset.n === 0) return;
+    setCls(preset.cls);
+    setSev(preset.sev);
+    setReview('open');
+    setPageId('');
+  }, [preset]);
+  useEffect(() => {
+    setShown(PAGE_SIZE);
+  }, [cls, sev, review, pageId]);
   const qs = new URLSearchParams();
   if (cls) qs.set('classification', cls);
   if (sev) qs.set('severity', sev);
@@ -137,28 +177,63 @@ function Findings({
         ) : null}
       </div>
       {list.data && rows.length > 0 ? (
-        <ul className="finding-list">
-          {rows.map((f) => (
-            <li key={f.id} className="finding-item">
-              <div className="row">
-                <ClassPill value={f.classification} />
-                <SeverityTag value={f.severity} />
-                <span className="muted">
-                  <ConfidenceText value={f.confidence} />
-                </span>
-              </div>
-              <h3>
-                <Link href={`/orgs/${orgId}/findings/${f.id}`}>{f.ruleTitle}</Link>
-              </h3>
-              <p>{f.message}</p>
-              <p className="muted">
-                {f.wcagCriteria.length > 0 ? `WCAG ${f.wcagCriteria.join(', ')} · ` : ''}
-                {f.occurrences} occurrence{f.occurrences === 1 ? '' : 's'} · {f.pageUrl}
-                {f.reviewStatus !== 'open' ? ` · ${f.reviewStatus.replaceAll('_', ' ')}` : ''}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="muted" data-testid="finding-counts">
+            {rows.length} unique finding{rows.length === 1 ? '' : 's'} ·{' '}
+            {rows.reduce((n, f) => n + f.occurrences, 0)} affected element
+            {rows.reduce((n, f) => n + f.occurrences, 0) === 1 ? '' : 's'} ·{' '}
+            {new Set(rows.map((f) => f.pageId)).size} affected page
+            {new Set(rows.map((f) => f.pageId)).size === 1 ? '' : 's'}. A unique finding is one rule
+            failing on one page; it can affect several elements.
+          </p>
+          <ul className="finding-list">
+            {rows.slice(0, shown).map((f) => (
+              <li key={f.id} className="finding-item">
+                <div className="row">
+                  <ClassPill value={f.classification} />
+                  <SeverityTag value={f.severity} />
+                  <span className="muted">
+                    <ConfidenceText value={f.confidence} />
+                  </span>
+                </div>
+                <h3>
+                  <Link href={`/orgs/${orgId}/findings/${f.id}`}>{f.ruleTitle}</Link>
+                </h3>
+                <p>{f.message}</p>
+                <p className="muted break">
+                  Page: <span title={f.pageUrl}>{pagePath(f.pageUrl)}</span>
+                  {f.selector ? (
+                    <>
+                      {' '}
+                      · Element: <code className="break">{f.selector}</code>
+                    </>
+                  ) : null}
+                </p>
+                <p className="muted">
+                  {f.wcagCriteria.length > 0 ? `WCAG ${f.wcagCriteria.join(', ')} · ` : ''}
+                  {f.occurrences} affected element{f.occurrences === 1 ? '' : 's'}
+                  {f.reviewStatus !== 'open' ? ` · ${f.reviewStatus.replaceAll('_', ' ')}` : ''}
+                  {' · '}
+                  <Link href={`/orgs/${orgId}/findings/${f.id}#visual-evidence`}>
+                    Open evidence
+                  </Link>
+                </p>
+              </li>
+            ))}
+          </ul>
+          {rows.length > shown ? (
+            <p>
+              Showing {shown} of {rows.length}.{' '}
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setShown((s) => s + PAGE_SIZE)}
+              >
+                Show more findings
+              </button>
+            </p>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
@@ -170,6 +245,11 @@ export default function ScanReport() {
   const d = useAsync(() => api<ScanDetail>('GET', `/orgs/${orgId}/scans/${scanId}`), scanId);
   const active = d.data?.scan.status === 'queued' || d.data?.scan.status === 'running';
   const { reload } = d;
+  const [preset, setPreset] = useState<Preset>({ n: 0, cls: '', sev: '' });
+  const jumpTo = (cls: string, sev: string) => {
+    setPreset((p) => ({ n: p.n + 1, cls, sev }));
+    document.getElementById('findings-h')?.scrollIntoView({ block: 'start' });
+  };
   useEffect(() => {
     if (!active) return;
     const t = setInterval(reload, 3000);
@@ -185,6 +265,14 @@ export default function ScanReport() {
   const bc = summary.byClassification;
   const done = scan.status === 'completed';
   const pending = summary.manualTasks['pending'] ?? 0;
+  const urgentSev = (summary.bySeverity['critical'] ?? 0) + (summary.bySeverity['serious'] ?? 0);
+  const potentialCount = bc['strong_potential'] ?? 0;
+  const confirmedCount = bc['confirmed'] ?? 0;
+  const scannedPages = pages.filter((p) => p.status === 'scanned');
+  const failedPages = pages.filter((p) => p.status === 'failed');
+  const skippedPages = pages.filter((p) => p.status === 'skipped');
+  const excludedPages = skippedPages.filter((p) => p.failureReason === 'excluded_by_robots');
+  const notScanned = pages.filter((p) => p.status !== 'scanned');
 
   return (
     <>
@@ -217,6 +305,33 @@ export default function ScanReport() {
                 ? `${String(pending)} manual check${pending === 1 ? '' : 's'} still need a person.`
                 : ''}
             </p>
+            {urgentSev > 0 || potentialCount > 0 || pending > 0 ? (
+              <div className="row" data-testid="next-actions">
+                {confirmedCount > 0 && urgentSev > 0 ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => jumpTo('confirmed', 'critical')}
+                  >
+                    Review critical findings
+                  </button>
+                ) : null}
+                {potentialCount > 0 ? (
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    onClick={() => jumpTo('strong_potential', '')}
+                  >
+                    Review potential findings
+                  </button>
+                ) : null}
+                {pending > 0 ? (
+                  <Link className="btn secondary" href={`/orgs/${orgId}/scans/${scan.id}/manual`}>
+                    Complete manual verification
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <div className="kpis">
             {CLASSES.map((c) => (
@@ -260,7 +375,7 @@ export default function ScanReport() {
             </ul>
           </div>
 
-          <Findings orgId={orgId} scanId={scan.id} pages={pages} />
+          <Findings orgId={orgId} scanId={scan.id} pages={pages} preset={preset} />
 
           <div className="card">
             <h2>Manual verification</h2>
@@ -274,13 +389,37 @@ export default function ScanReport() {
 
           <div className="card">
             <h2>Coverage</h2>
-            <p>
-              {summary.pagesScanned} page{summary.pagesScanned === 1 ? '' : 's'} scanned
-              {summary.pagesNotScanned > 0
-                ? `, ${String(summary.pagesNotScanned)} not scanned (blocked, excluded by robots.txt or failed).`
-                : '.'}{' '}
-              Interaction tests {scan.interactionTests ? 'were run' : 'were not run'}.
+            <p data-testid="coverage-counts">
+              {pages.length} discovered · {scannedPages.length} scanned · {failedPages.length}{' '}
+              failed · {skippedPages.length - excludedPages.length} skipped · {excludedPages.length}{' '}
+              excluded by configuration (robots.txt). Interaction tests{' '}
+              {scan.interactionTests ? 'were run' : 'were not run'}.
             </p>
+            {notScanned.length > 0 ? (
+              <div className="table-wrap">
+                <table>
+                  <caption>Pages not scanned, with the reason</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Page</th>
+                      <th scope="col">Outcome</th>
+                      <th scope="col">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notScanned.map((p) => (
+                      <tr key={p.id}>
+                        <th scope="row" className="break">
+                          {p.url}
+                        </th>
+                        <td style={{ textTransform: 'capitalize' }}>{p.status}</td>
+                        <td>{reasonOf(p)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
             <CoverageLimits orgId={orgId} scanId={scan.id} />
             <div className="table-wrap">
               <table>

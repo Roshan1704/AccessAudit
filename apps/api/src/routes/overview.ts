@@ -1,13 +1,18 @@
 import {
+  accessibilityRules,
   crawledPages,
+  findingComments,
+  findingHistory,
   findings,
   manualVerificationTasks,
   projects,
   scans,
+  users,
   withTenant,
 } from '@accessaudit/db';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
+import { compareRows, loadRows } from './compare.js';
 import type { Deps } from '../deps.js';
 import { requireOrg } from '../session.js';
 import { param, uuidOr404 } from '../util.js';
@@ -26,7 +31,14 @@ export function overviewRoutes(app: FastifyInstance, deps: Deps): void {
         .where(and(eq(projects.organizationId, a.orgId), isNull(projects.deletedAt)))
         .orderBy(asc(projects.name));
       const projectIds = projectRows.map((p) => p.id);
-      if (projectIds.length === 0) return { projects: [], totals: totalsOf([]) };
+      if (projectIds.length === 0)
+        return {
+          projects: [],
+          totals: totalsOf([]),
+          failedScans: [],
+          topFindings: [],
+          recentActivity: [],
+        };
 
       const completed = await tx
         .selectDistinctOn([scans.projectId], {
@@ -36,6 +48,7 @@ export function overviewRoutes(app: FastifyInstance, deps: Deps): void {
           wcagVersion: scans.wcagVersion,
           conformanceLevel: scans.conformanceLevel,
           maxPages: scans.maxPages,
+          createdAt: scans.createdAt,
         })
         .from(scans)
         .where(
@@ -47,6 +60,7 @@ export function overviewRoutes(app: FastifyInstance, deps: Deps): void {
         )
         .orderBy(scans.projectId, desc(scans.createdAt));
       const scanIds = completed.map((s) => s.id);
+      const completedAt = new Map(completed.map((s) => [s.projectId, s.createdAt]));
 
       const sev = scanIds.length
         ? await tx
@@ -90,6 +104,109 @@ export function overviewRoutes(app: FastifyInstance, deps: Deps): void {
             .groupBy(crawledPages.scanId)
         : [];
 
+      // Change since the previous completed scan of the same project. Uses the same comparison as
+      // the scan compare view, so a page that was not scanned again never counts as resolved.
+      const change = new Map<string, { added: number; regressed: number; resolved: number }>();
+      for (const s of completed) {
+        const [prev] = await tx
+          .select({ id: scans.id })
+          .from(scans)
+          .where(
+            and(
+              eq(scans.projectId, s.projectId),
+              eq(scans.status, 'completed'),
+              lt(scans.createdAt, sql`(select created_at from scans where id = ${s.id})`),
+            ),
+          )
+          .orderBy(desc(scans.createdAt))
+          .limit(1);
+        if (!prev) continue;
+        const scannedRows = await tx
+          .select({ url: crawledPages.url })
+          .from(crawledPages)
+          .where(and(eq(crawledPages.scanId, s.id), eq(crawledPages.status, 'scanned')));
+        const diff = compareRows(
+          await loadRows(tx, prev.id),
+          await loadRows(tx, s.id),
+          new Set(scannedRows.map((r) => r.url)),
+        );
+        change.set(s.id, {
+          added: diff.added.filter(isReal).length,
+          regressed: diff.regressed.filter(isReal).length,
+          resolved: diff.resolved.filter(isReal).length,
+        });
+      }
+
+      // Scans that failed after the project's latest completed scan (or with none): nothing
+      // current exists for them, so they need a person.
+      const failedRows = await tx
+        .select({
+          id: scans.id,
+          projectId: scans.projectId,
+          failureReason: scans.failureReason,
+          createdAt: scans.createdAt,
+        })
+        .from(scans)
+        .where(
+          and(
+            eq(scans.organizationId, a.orgId),
+            eq(scans.status, 'failed'),
+            inArray(scans.projectId, projectIds),
+          ),
+        )
+        .orderBy(desc(scans.createdAt))
+        .limit(50);
+      const failedScans = failedRows
+        .filter((f) => {
+          const c = completedAt.get(f.projectId);
+          return c === undefined || f.createdAt > c;
+        })
+        .slice(0, 5)
+        .map((f) => ({
+          id: f.id,
+          projectId: f.projectId,
+          projectName: projectRows.find((p) => p.id === f.projectId)?.name ?? '',
+          failureReason: f.failureReason,
+          createdAt: f.createdAt,
+        }));
+
+      const topFindings = scanIds.length
+        ? (
+            await tx
+              .select({
+                id: findings.id,
+                scanId: findings.scanId,
+                severity: findings.severity,
+                ruleTitle: accessibilityRules.title,
+                pageUrl: crawledPages.url,
+                selector: findings.selector,
+              })
+              .from(findings)
+              .innerJoin(accessibilityRules, eq(accessibilityRules.id, findings.ruleId))
+              .innerJoin(crawledPages, eq(crawledPages.id, findings.pageId))
+              .where(
+                and(
+                  inArray(findings.scanId, scanIds),
+                  eq(findings.reviewStatus, 'open'),
+                  eq(findings.classification, 'confirmed'),
+                  inArray(findings.severity, ['critical', 'serious']),
+                ),
+              )
+              .orderBy(
+                sql`case ${findings.severity} when 'critical' then 0 else 1 end`,
+                desc(findings.occurrences),
+              )
+              .limit(5)
+          ).map((f) => ({
+            ...f,
+            projectName:
+              projectRows.find((p) => p.id === completed.find((c) => c.id === f.scanId)?.projectId)
+                ?.name ?? '',
+          }))
+        : [];
+
+      const recentActivity = await loadActivity(tx, a.orgId, projectRows);
+
       const out = projectRows.map((p) => {
         const s = completed.find((c) => c.projectId === p.id);
         if (!s) return { ...p, latestScan: null };
@@ -115,12 +232,117 @@ export function overviewRoutes(app: FastifyInstance, deps: Deps): void {
             manualTasksOpen: tasks.find((t) => t.scanId === s.id)?.n ?? 0,
             pagesScanned: pg?.scanned ?? 0,
             pagesNotScanned: pg?.notScanned ?? 0,
+            // null when there is no earlier completed scan to compare with
+            change: change.get(s.id) ?? null,
           },
         };
       });
-      return { projects: out, totals: totalsOf(out) };
+      return {
+        projects: out,
+        totals: totalsOf(out),
+        failedScans,
+        topFindings,
+        recentActivity,
+      };
     });
   });
+}
+
+const isReal = (r: { classification: string }) =>
+  r.classification === 'confirmed' || r.classification === 'strong_potential';
+
+type Tx = Parameters<Parameters<typeof withTenant>[2]>[0];
+
+/** Newest team activity: finished scans, comments and status or assignee changes. */
+async function loadActivity(
+  tx: Tx,
+  orgId: string,
+  projectRows: { id: string; name: string }[],
+): Promise<
+  {
+    kind: 'scan' | 'comment' | 'status' | 'assignee';
+    at: Date;
+    text: string;
+    href: { scanId?: string; findingId?: string; projectId?: string };
+  }[]
+> {
+  const items: Awaited<ReturnType<typeof loadActivity>> = [];
+  const projectIds = projectRows.map((p) => p.id);
+  const name = (id: string) => projectRows.find((p) => p.id === id)?.name ?? 'a project';
+
+  const recentScans = await tx
+    .select({
+      id: scans.id,
+      projectId: scans.projectId,
+      status: scans.status,
+      at: scans.finishedAt,
+    })
+    .from(scans)
+    .where(
+      and(
+        eq(scans.organizationId, orgId),
+        inArray(scans.status, ['completed', 'failed']),
+        inArray(scans.projectId, projectIds),
+        isNotNull(scans.finishedAt),
+      ),
+    )
+    .orderBy(desc(scans.finishedAt))
+    .limit(8);
+  for (const s of recentScans) {
+    if (!s.at) continue;
+    items.push({
+      kind: 'scan',
+      at: s.at,
+      text: `Scan ${s.status} for ${name(s.projectId)}`,
+      href: { scanId: s.id },
+    });
+  }
+
+  const comments = await tx
+    .select({
+      findingId: findingComments.findingId,
+      at: findingComments.createdAt,
+      author: users.name,
+    })
+    .from(findingComments)
+    .leftJoin(users, eq(users.id, findingComments.authorId))
+    .where(eq(findingComments.organizationId, orgId))
+    .orderBy(desc(findingComments.createdAt))
+    .limit(8);
+  for (const c of comments)
+    items.push({
+      kind: 'comment',
+      at: c.at,
+      text: `${c.author ?? 'A former member'} commented on a finding`,
+      href: { findingId: c.findingId },
+    });
+
+  const history = await tx
+    .select({
+      findingId: findingHistory.findingId,
+      kind: findingHistory.kind,
+      toValue: findingHistory.toValue,
+      at: findingHistory.createdAt,
+      actor: users.name,
+    })
+    .from(findingHistory)
+    .leftJoin(users, eq(users.id, findingHistory.actorId))
+    .where(eq(findingHistory.organizationId, orgId))
+    .orderBy(desc(findingHistory.createdAt))
+    .limit(8);
+  for (const h of history) {
+    const who = h.actor ?? 'A former member';
+    const isStatus = h.kind === 'status';
+    items.push({
+      kind: isStatus ? 'status' : 'assignee',
+      at: h.at,
+      text: isStatus
+        ? `${who} set a finding to ${(h.toValue ?? 'none').replaceAll('_', ' ')}`
+        : `${who} changed a finding's assignee`,
+      href: { findingId: h.findingId },
+    });
+  }
+  return items.sort((x, y) => y.at.getTime() - x.at.getTime()).slice(0, 8);
 }
 
 interface Row {

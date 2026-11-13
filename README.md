@@ -50,6 +50,7 @@ Node 22 (see `.nvmrc`), npm, Docker.
    ALTER ROLE aa_api LOGIN PASSWORD '<choose>';
    ```
 4. Build and migrate (migrations run as the database owner, not as `aa_api`):
+
    ```powershell
    npm run typecheck
    $env:MIGRATION_DATABASE_URL = 'postgresql://accessaudit:<postgres password>@localhost:5433/accessaudit'
@@ -57,7 +58,11 @@ Node 22 (see `.nvmrc`), npm, Docker.
    $env:DATABASE_URL = 'postgresql://aa_api:<aa_api password>@localhost:5433/accessaudit'
    npm run db:seed        # verifies bootstrap prerequisites; creates no data
    ```
+
    The seed script intentionally inserts no users, organizations or projects. This product does not fabricate data.
+
+   Optional, local development only: `npm run db:seed:demo -w @accessaudit/db` (needs `MIGRATION_DATABASE_URL`) creates a clearly labelled sample organization, "Demo Org (sample data)", with three projects on reserved `.example` hosts, scans, findings and a comparison. It is idempotent and refuses to run in production. Sign in as `demo.owner@accessaudit.example` with the password printed by the script; that password is for local use only. Demo hosts cannot be scanned live.
+
 5. Run the API and web app in two terminals:
    ```powershell
    $env:SESSION_COOKIE_SECRET = '<at least 32 random characters>'

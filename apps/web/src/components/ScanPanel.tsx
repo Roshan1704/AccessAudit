@@ -166,7 +166,7 @@ export function ScanPanel({
               <p style={{ marginBottom: '0.5rem' }}>
                 {isAdmin
                   ? hasAny
-                    ? 'Follow the steps shown for your domain (meta tag, file or DNS record), then choose “Verify now”.'
+                    ? 'Follow the steps shown for your domain (DNS TXT record or well-known file), then choose “Verify now”.'
                     : 'Add your site’s hostname under Domains, follow the verification steps, then choose “Verify now”.'
                   : 'Ask an admin of this organization to add and verify the domain.'}
               </p>

@@ -1295,8 +1295,80 @@ pre.evidence {
 }
 .shot {
   max-width: 100%;
+  height: auto;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
+}
+.shot-figure {
+  margin: 0;
+  min-width: 0;
+}
+.shot-open {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  min-height: 44px;
+}
+.shot-dialog {
+  max-width: min(96vw, 1400px);
+  max-height: 94vh;
+  overflow: auto;
+  padding: 0.75rem;
+}
+.shot-dialog img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+.break {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.break code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.tech-details {
+  border-top: 1px solid var(--color-line);
+  padding: 0.25rem 0;
+  min-width: 0;
+}
+.tech-details > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.tech-details pre.evidence {
+  max-height: 24rem;
+  overflow: auto;
+  max-width: 100%;
+}
+.section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0 0 1rem;
+}
+.section-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+@media (min-width: 1024px) {
+  .section-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--color-bg, #fff);
+    border-bottom: 1px solid var(--color-line);
+  }
 }
 .check-row {
   display: flex;

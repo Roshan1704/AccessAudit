@@ -309,6 +309,33 @@ export interface OverviewScan {
   manualTasksOpen: number;
   pagesScanned: number;
   pagesNotScanned: number;
+  /** Change since the previous completed scan; null when there is none to compare with. */
+  change: { added: number; regressed: number; resolved: number } | null;
+}
+
+export interface OverviewFailedScan {
+  id: string;
+  projectId: string;
+  projectName: string;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+export interface OverviewTopFinding {
+  id: string;
+  scanId: string;
+  severity: Severity;
+  ruleTitle: string;
+  pageUrl: string;
+  selector: string | null;
+  projectName: string;
+}
+
+export interface OverviewActivity {
+  kind: 'scan' | 'comment' | 'status' | 'assignee';
+  at: string;
+  text: string;
+  href: { scanId?: string; findingId?: string; projectId?: string };
 }
 
 export interface OverviewProject {
@@ -320,6 +347,9 @@ export interface OverviewProject {
 
 export interface Overview {
   projects: OverviewProject[];
+  failedScans: OverviewFailedScan[];
+  topFindings: OverviewTopFinding[];
+  recentActivity: OverviewActivity[];
   totals: {
     projects: number;
     projectsScanned: number;

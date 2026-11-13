@@ -19,12 +19,12 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   {
     icon: ShieldCheck,
     title: 'Built on WCAG 2.2 AA',
-    text: 'Audits target the success criteria that matter for legal compliance and real usability: contrast, keyboard access, labels, focus and more.',
+    text: 'Audits test against WCAG 2.2 AA success criteria such as contrast, keyboard access, labels and focus. Results support your accessibility work; they are not a certification or legal advice.',
   },
   {
     icon: Globe2,
     title: 'Domain ownership checks',
-    text: 'Add a website, then prove you own it with a meta tag, a small file or a DNS record. Only verified domains can be audited.',
+    text: 'Add a website, then prove you own it with a DNS TXT record, or with a file served from a well-known address. Only verified domains can be audited.',
   },
   {
     icon: Building2,
@@ -59,7 +59,7 @@ const STEPS = [
   },
   {
     title: 'Add and verify a website',
-    text: 'Create a project, then confirm you own the domain with a meta tag, a small file or a DNS record.',
+    text: 'Create a project, then confirm you own the domain with a DNS TXT record (recommended) or a well-known file on your site.',
   },
   {
     title: 'Audit and fix',
@@ -92,7 +92,7 @@ const FAQ = [
   },
   {
     q: 'What is WCAG 2.2 AA?',
-    a: 'WCAG 2.2 is the current version of the Web Content Accessibility Guidelines. Level AA is the target most laws and procurement rules refer to.',
+    a: 'WCAG 2.2 is the current version of the Web Content Accessibility Guidelines. Level AA is the target many laws and procurement rules refer to.',
   },
   {
     q: 'Why do I have to verify my domain?',
@@ -103,8 +103,27 @@ const FAQ = [
     a: 'Yes. Invite teammates to your organization and give each person the role that fits: owner, admin, member or viewer.',
   },
   {
-    q: 'Is automated testing enough for full compliance?',
-    a: 'No tool can find every issue on its own. Automated audits catch a large share of problems quickly, and should be paired with manual testing by people.',
+    q: 'Does a clean scan mean my site is compliant?',
+    a: 'No. AccessAudit does not certify WCAG conformance or legal compliance. Automated audits catch only part of the issues, so a clean result is not proof. Pair them with manual testing by people and, where needed, qualified advice.',
+  },
+];
+
+const AUDIENCES: { title: string; points: string[] }[] = [
+  {
+    title: 'For engineering teams',
+    points: [
+      'Every finding shows the page, the element, a screenshot and the markup.',
+      'Assign findings, change their status and discuss them in one place.',
+      'Rescan after a fix and compare: new, regressed and resolved issues.',
+    ],
+  },
+  {
+    title: 'For accessibility consultants',
+    points: [
+      'Confirmed and potential findings are kept apart, with a confidence level.',
+      'Manual verification checklists for what automation cannot decide.',
+      'Exportable PDF, HTML, CSV and JSON reports with clear coverage limits.',
+    ],
   },
 ];
 
@@ -208,7 +227,7 @@ export default function Home() {
                 WCAG 2.2 AA accessibility auditing
               </span>
               <h1 id="hero-heading">
-                Accessibility you can <em>prove</em>, for every site you run
+                Accessibility work you can <em>track</em>, for every site you run
               </h1>
               <p className="lead">
                 AccessAudit helps product and engineering teams find accessibility barriers, fix
@@ -256,7 +275,8 @@ export default function Home() {
                 <strong>Legal exposure</strong>
                 <p>
                   Accessibility rules such as the European Accessibility Act and the ADA are
-                  increasingly enforced, and procurement teams ask for proof.
+                  increasingly enforced, and procurement teams ask for evidence of the work you have
+                  done.
                 </p>
               </div>
               <div>
@@ -277,7 +297,29 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="landing-section" id="features" aria-labelledby="features-heading">
+        <section className="landing-section" id="audiences" aria-labelledby="aud-heading">
+          <div className="section-inner">
+            <h2 id="aud-heading">Built for the people who fix and the people who review</h2>
+            <ul className="feature-grid">
+              {AUDIENCES.map((a) => (
+                <li key={a.title} className="card">
+                  <h3>{a.title}</h3>
+                  <ul>
+                    {a.points.map((p) => (
+                      <li key={p}>{p}</li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+            <p className="sub">
+              The example audit at the top uses illustrative demo data, not results from a real
+              website.
+            </p>
+          </div>
+        </section>
+
+        <section className="landing-section alt" id="features" aria-labelledby="features-heading">
           <div className="section-inner">
             <h2 id="features-heading">Everything you need to manage accessibility</h2>
             <p className="sub">One workspace for your sites, your team and your results.</p>

@@ -115,6 +115,10 @@ test('authenticated scan: start, wait, review report, finding and manual tasks',
   await expect(first).toBeVisible();
   await first.click();
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Visual evidence' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Technical evidence' })).toBeVisible();
+  await expect(page.locator('pre.evidence').first()).toBeHidden();
+  await page.locator('.tech-details > summary').first().click();
   await expect(page.locator('pre.evidence').first()).toBeVisible();
   expect(await axeViolations(page), 'finding detail: axe').toEqual([]);
   await reflowAndShoot(page, 'finding-detail');

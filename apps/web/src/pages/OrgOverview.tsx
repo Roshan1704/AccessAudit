@@ -6,6 +6,7 @@ import {
   api,
   atLeast,
   type Overview,
+  type OverviewActivity,
   type OverviewProject,
   type Severity,
   type SeverityCounts,
@@ -85,6 +86,114 @@ function buildQueue(orgId: string, projects: OverviewProject[]): QueueItem[] {
     });
   }
   return items.sort((a, b) => b.weight - a.weight);
+}
+
+function activityHref(orgId: string, h: OverviewActivity['href']): string {
+  if (h.findingId) return `/orgs/${orgId}/findings/${h.findingId}`;
+  if (h.scanId) return `/orgs/${orgId}/scans/${h.scanId}`;
+  return `/orgs/${orgId}`;
+}
+
+/** Record-level sections. Counts and links only; there is deliberately no overall score. */
+function Attention({ orgId, data }: { orgId: string; data: Overview }) {
+  const changed = data.projects.filter(
+    (p) =>
+      p.latestScan?.change && (p.latestScan.change.added > 0 || p.latestScan.change.regressed > 0),
+  );
+  const manual = data.projects.filter((p) => (p.latestScan?.manualTasksOpen ?? 0) > 0);
+  return (
+    <div className="grid-cards" style={{ marginBottom: '1rem' }}>
+      <section className="card" aria-labelledby="ov-critical">
+        <h2 id="ov-critical">Confirmed critical and serious</h2>
+        {data.topFindings.length === 0 ? (
+          <p className="muted">
+            No open confirmed critical or serious findings in the latest scans.
+          </p>
+        ) : (
+          <ul>
+            {data.topFindings.map((f) => (
+              <li key={f.id}>
+                <Link href={`/orgs/${orgId}/findings/${f.id}`}>{f.ruleTitle}</Link>{' '}
+                <span className={`sev-tag ${f.severity}`}>{f.severity}</span>
+                <br />
+                <span className="muted break">
+                  {f.projectName} · {f.pageUrl}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card" aria-labelledby="ov-change">
+        <h2 id="ov-change">New and regressed</h2>
+        {changed.length === 0 ? (
+          <p className="muted">
+            Nothing new or regressed since the previous scan, or no earlier scan to compare with.
+          </p>
+        ) : (
+          <ul>
+            {changed.map((p) => (
+              <li key={p.id}>
+                <Link href={`/orgs/${orgId}/scans/${p.latestScan?.id ?? ''}`}>{p.name}</Link>:{' '}
+                {p.latestScan?.change?.added ?? 0} new, {p.latestScan?.change?.regressed ?? 0}{' '}
+                regressed
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card" aria-labelledby="ov-manual">
+        <h2 id="ov-manual">Pending manual verification</h2>
+        {manual.length === 0 ? (
+          <p className="muted">No manual checks waiting.</p>
+        ) : (
+          <ul>
+            {manual.map((p) => (
+              <li key={p.id}>
+                <Link href={`/orgs/${orgId}/scans/${p.latestScan?.id ?? ''}/manual`}>{p.name}</Link>
+                : {p.latestScan?.manualTasksOpen ?? 0} pending
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card" aria-labelledby="ov-failed">
+        <h2 id="ov-failed">Failed scans</h2>
+        {data.failedScans.length === 0 ? (
+          <p className="muted">No failed scans since the latest completed one.</p>
+        ) : (
+          <ul>
+            {data.failedScans.map((f) => (
+              <li key={f.id}>
+                <Link href={`/orgs/${orgId}/scans/${f.id}`}>{f.projectName}</Link>:{' '}
+                {f.failureReason ?? 'failed'} ({new Date(f.createdAt).toLocaleDateString()})
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card" aria-labelledby="ov-activity">
+        <h2 id="ov-activity">Recent activity</h2>
+        {data.recentActivity.length === 0 ? (
+          <p className="muted">No activity yet.</p>
+        ) : (
+          <ul>
+            {data.recentActivity.map((a, i) => (
+              <li key={`${a.at}-${String(i)}`}>
+                <Link href={activityHref(orgId, a.href)}>{a.text}</Link>
+                <br />
+                <span className="muted">{new Date(a.at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function ProjectSummary({ orgId, p }: { orgId: string; p: OverviewProject }) {
@@ -212,6 +321,10 @@ export default function OrgOverview() {
             </ul>
           )}
         </section>
+      ) : null}
+
+      {hasProject && list && overview.data ? (
+        <Attention orgId={orgId} data={overview.data} />
       ) : null}
 
       {hasProject && list ? (

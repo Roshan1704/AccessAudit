@@ -78,14 +78,14 @@ test('public pages and signed-in pages: titles, reflow, axe, keyboard', async ({
   const first = await page.evaluate(() => document.activeElement?.textContent.trim() ?? '');
   expect(first.toLowerCase()).toContain('skip');
 
-  await page.getByLabel('Name').fill('UI Audit');
+  await page.getByLabel('Name').fill('Maya Fernandez');
   await page.getByLabel('Email').fill(`ui-${run}@example.test`);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/orgs$/);
   await checkPage(page, 'orgs-empty');
 
-  await page.getByLabel('Name').fill(`UI Org ${run}`);
+  await page.getByLabel('Name').fill(`Brightwave Digital ${run}`);
   await page.getByLabel('URL slug').fill(`ui-org-${run}`);
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(/\/orgs\/[0-9a-f-]{36}/);
@@ -106,10 +106,10 @@ test('public pages and signed-in pages: titles, reflow, axe, keyboard', async ({
   }
 
   await page.goto(`/orgs/${orgId}/projects`);
-  await page.getByLabel('Name').fill('Audit site');
+  await page.getByLabel('Name').fill('Marketing website');
   await page.getByLabel('Base URL').fill('https://example.com');
   await page.getByRole('button', { name: 'Create project' }).click();
-  await page.getByRole('link', { name: 'Audit site' }).first().click();
+  await page.getByRole('link', { name: 'Marketing website' }).first().click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
   await checkPage(page, 'project-detail');
   await page.getByRole('tab', { name: 'Settings' }).click();

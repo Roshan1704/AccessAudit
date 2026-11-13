@@ -144,6 +144,145 @@ suite('org overview (integration)', () => {
     expect(cross.status).toBe(404);
   });
 
+  it('reports change since the previous scan, never resolving unscanned pages, plus failures, top findings and activity', async () => {
+    const a = await setup('ov-change');
+    const b = await setup('ov-change-other');
+    const startScan = async () => {
+      const s = await a.u.c.call('POST', `/orgs/${a.orgId}/scans`, { projectId: a.projectId });
+      expect(s.status).toBe(202);
+      return s.body.scan.id as string;
+    };
+    const scan1 = await startScan();
+    let findingOnA = '';
+    await withTenant(h.handle.db, { orgId: a.orgId }, async (tx) => {
+      const mkPage = async (scanId: string, status: 'scanned' | 'failed', path: string) => {
+        const [row] = await tx
+          .insert(crawledPages)
+          .values({
+            organizationId: a.orgId,
+            scanId,
+            url: `https://${a.host}/${path}`,
+            status,
+            depth: 0,
+          })
+          .returning({ id: crawledPages.id });
+        return (row as { id: string }).id;
+      };
+      const mk = async (
+        scanId: string,
+        pageId: string,
+        fp: string,
+        severity: 'critical' | 'serious',
+      ) => {
+        const [row] = await tx
+          .insert(findings)
+          .values({
+            organizationId: a.orgId,
+            scanId,
+            pageId,
+            ruleId: 'axe:image-alt',
+            fingerprint: fp,
+            classification: 'confirmed',
+            confidence: 90,
+            severity,
+            wcagCriteria: ['1.1.1'],
+            message: 'm',
+            selector: `img.${fp}`,
+          })
+          .returning({ id: findings.id });
+        return (row as { id: string }).id;
+      };
+      const p1a = await mkPage(scan1, 'scanned', 'a');
+      const p1b = await mkPage(scan1, 'scanned', 'b');
+      await mk(scan1, p1a, 'fix-me', 'critical');
+      await mk(scan1, p1b, 'unscanned-later', 'serious');
+      await tx
+        .update(scans)
+        .set({ status: 'completed', finishedAt: new Date() })
+        .where(eq(scans.id, scan1));
+    });
+
+    const scan2 = await startScan();
+    await withTenant(h.handle.db, { orgId: a.orgId }, async (tx) => {
+      const [pa] = await tx
+        .insert(crawledPages)
+        .values({
+          organizationId: a.orgId,
+          scanId: scan2,
+          url: `https://${a.host}/a`,
+          status: 'scanned',
+          depth: 0,
+        })
+        .returning({ id: crawledPages.id });
+      // page b is not scanned this time
+      await tx.insert(crawledPages).values({
+        organizationId: a.orgId,
+        scanId: scan2,
+        url: `https://${a.host}/b`,
+        status: 'failed',
+        depth: 0,
+      });
+      const [f] = await tx
+        .insert(findings)
+        .values({
+          organizationId: a.orgId,
+          scanId: scan2,
+          pageId: (pa as { id: string }).id,
+          ruleId: 'axe:image-alt',
+          fingerprint: 'brand-new',
+          classification: 'confirmed',
+          confidence: 90,
+          severity: 'critical',
+          wcagCriteria: ['1.1.1'],
+          message: 'm',
+          selector: 'img.new',
+        })
+        .returning({ id: findings.id });
+      findingOnA = (f as { id: string }).id;
+      await tx
+        .update(scans)
+        .set({ status: 'completed', finishedAt: new Date() })
+        .where(eq(scans.id, scan2));
+    });
+
+    const scan3 = await startScan();
+    await withTenant(h.handle.db, { orgId: a.orgId }, async (tx) => {
+      await tx
+        .update(scans)
+        .set({ status: 'failed', failureReason: 'site unreachable', finishedAt: new Date() })
+        .where(eq(scans.id, scan3));
+    });
+
+    const c = await a.u.c.call('POST', `/orgs/${a.orgId}/findings/${findingOnA}/comments`, {
+      body: 'Looking at this.',
+    });
+    expect(c.status).toBe(201);
+
+    const r = await a.u.c.call('GET', `/orgs/${a.orgId}/overview`);
+    expect(r.status).toBe(200);
+    const latest = r.body.projects[0].latestScan;
+    expect(latest.id).toBe(scan2);
+    // one new, one resolved (page a rescanned); the finding on page b was NOT rescanned so it is not resolved
+    expect(latest.change).toEqual({ added: 1, regressed: 0, resolved: 1 });
+    expect(r.body.failedScans).toHaveLength(1);
+    expect(r.body.failedScans[0]).toMatchObject({
+      id: scan3,
+      projectId: a.projectId,
+      failureReason: 'site unreachable',
+    });
+    expect(r.body.topFindings).toHaveLength(1);
+    expect(r.body.topFindings[0]).toMatchObject({ id: findingOnA, severity: 'critical' });
+    const kinds = (r.body.recentActivity as { kind: string }[]).map((x) => x.kind);
+    expect(kinds).toContain('comment');
+    expect(kinds).toContain('scan');
+
+    // nothing leaks to another tenant
+    const other = await b.u.c.call('GET', `/orgs/${b.orgId}/overview`);
+    expect(other.body.failedScans).toEqual([]);
+    expect(other.body.topFindings).toEqual([]);
+    expect(other.body.recentActivity).toEqual([]);
+  });
+
   it('requires a session', async () => {
     const r = await h.app.inject({
       method: 'GET',

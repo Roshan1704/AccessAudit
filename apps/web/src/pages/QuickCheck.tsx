@@ -140,12 +140,20 @@ function Result({ r }: { r: QuickResult }) {
       ) : null}
       <div className="cta-card">
         <h3>Want the whole site?</h3>
+        <p>This check covered one page and was not saved. In a project you can:</p>
+        <ul>
+          <li>Scan many pages, with interaction tests, after verifying your domain.</li>
+          <li>Keep a scan history and compare scans: new, regressed and resolved findings.</li>
+          <li>Assign findings, change their status and discuss them with your team.</li>
+          <li>Track remediation and export PDF, HTML, CSV or JSON reports.</li>
+        </ul>
         <p>
-          This check covered one page and was not saved. With an account you verify your domain,
-          then scan many pages, run interaction tests, keep a history, compare scans over time and
-          assign and track fixes.
+          <Link href="/register">Create a free account</Link>
+          {' · '}
+          <Link href="/login">Sign in</Link>
+          {' · '}
+          You can also run another quick check without an account.
         </p>
-        <Link href="/register">Create a free account</Link>
       </div>
     </section>
   );

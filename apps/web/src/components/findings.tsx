@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { CLASS_HELP, CLASS_LABEL, type Classification, type Severity } from '@/lib/api';
 
 export function ClassPill({ value }: { value: Classification }) {
@@ -165,6 +166,105 @@ function evidenceText(content: unknown): string {
 }
 
 const MAX_EVIDENCE_CHARS = 1500;
+
+interface EvidenceItem {
+  id: string;
+  kind: string;
+  content: unknown;
+  blobBase64: string | null;
+  contentType: string | null;
+}
+
+function isImage(e: EvidenceItem): boolean {
+  return Boolean(e.blobBase64) && (e.contentType ?? '').startsWith('image/');
+}
+
+function ScreenshotPreview({ e }: { e: EvidenceItem }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const src = `data:${e.contentType ?? 'image/png'};base64,${e.blobBase64 ?? ''}`;
+  const label = e.kind.replaceAll('_', ' ');
+  return (
+    <figure className="shot-figure">
+      <button
+        type="button"
+        className="shot-open"
+        onClick={() => ref.current?.showModal()}
+        aria-label={`Open larger view of ${label}`}
+      >
+        <img className="shot" src={src} alt={`Screenshot evidence: ${label}`} />
+      </button>
+      <figcaption className="muted">
+        Screenshot of the page when it was scanned. The affected element is not outlined because its
+        position was not recorded reliably; use the selector below to find it.
+      </figcaption>
+      <dialog ref={ref} className="shot-dialog" aria-label={`Larger view of ${label}`}>
+        <img src={src} alt={`Larger screenshot: ${label}`} />
+        <form method="dialog">
+          <button type="submit" className="btn">
+            Close
+          </button>
+        </form>
+      </dialog>
+    </figure>
+  );
+}
+
+/**
+ * Two levels of evidence. Visual evidence (screenshots, where it was found) comes first;
+ * everything the engine stored (DOM, computed styles, raw check data) stays available inside a
+ * clearly separated, collapsed technical section. Nothing is dropped.
+ */
+export function EvidenceSections({
+  evidence,
+  pageUrl,
+  selector,
+  message,
+}: {
+  evidence: EvidenceItem[];
+  pageUrl: string;
+  selector: string | null;
+  message: string;
+}) {
+  const images = evidence.filter(isImage);
+  const technical = evidence.filter((e) => !isImage(e));
+  return (
+    <>
+      <section className="card stack" aria-labelledby="visual-evidence-h" id="visual-evidence">
+        <h2 id="visual-evidence-h">Visual evidence</h2>
+        <p>{message}</p>
+        <dl className="kv">
+          <dt>Page</dt>
+          <dd className="break">{pageUrl}</dd>
+          <dt>Element</dt>
+          <dd className="break">{selector ? <code>{selector}</code> : 'Page level'}</dd>
+        </dl>
+        {images.length === 0 ? (
+          <p className="muted">No screenshot was stored for this finding.</p>
+        ) : (
+          images.map((e) => <ScreenshotPreview key={e.id} e={e} />)
+        )}
+      </section>
+      <section className="card" aria-labelledby="tech-evidence-h" id="technical-evidence">
+        <h2 id="tech-evidence-h">Technical evidence</h2>
+        {technical.length === 0 ? (
+          <p className="muted">No technical evidence stored.</p>
+        ) : (
+          <>
+            <p className="muted">
+              Raw data from the scan: DOM, selectors, computed styles and check results.
+            </p>
+            {technical.map((e) => (
+              <details key={e.id} className="tech-details">
+                <summary>{e.kind.replaceAll('_', ' ')}</summary>
+                <EvidenceView {...e} />
+              </details>
+            ))}
+          </>
+        )}
+      </section>
+    </>
+  );
+}
 
 /** Evidence block: text kinds as preformatted text, images inline. */
 export function EvidenceView({
