@@ -117,22 +117,16 @@ test('project -> report -> finding -> evidence -> status -> comment -> compare -
   // Section nav jumps.
   await page.getByRole('navigation', { name: 'On this page' }).getByText('Workflow').click();
 
-  // Status change then comment, then history.
+  // Workflow controls are exercised without saving, so the seeded history stays a believable
+  // story. Saving and commenting are covered by the API tests and the dedicated e2e specs.
+  await expect(page.locator('#workflow-summary')).toContainText('Status:');
   await page.getByLabel('Review status').selectOption('fixed');
-  await page.getByRole('button', { name: 'Save review' }).click();
-  await expect(page.getByText('Saved.')).toBeVisible();
-  const note = `Verified in staging ${Date.now().toString(36)}`;
-  await page
-    .getByLabel(/comment/i)
-    .first()
-    .fill(note);
-  await page.getByRole('button', { name: 'Post comment' }).click();
-  await expect(page.getByText(note)).toBeVisible();
-  await shoot(page, '07-finding-workflow');
-  // restore so the demo data stays illustrative
+  await expect(page.getByLabel('Review status')).toHaveValue('fixed');
   await page.getByLabel('Review status').selectOption('open');
-  await page.getByRole('button', { name: 'Save review' }).click();
-  await expect(page.getByText('Saved.')).toBeVisible();
+  await page.getByLabel('Add a comment').fill('draft only, not posted');
+  await expect(page.getByRole('button', { name: 'Post comment' })).toBeEnabled();
+  await page.getByLabel('Add a comment').fill('');
+  await shoot(page, '07-finding-workflow');
 
   // Exports.
   await page.goBack();

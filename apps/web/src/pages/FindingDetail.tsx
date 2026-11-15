@@ -129,7 +129,13 @@ export default function FindingDetail() {
         </p>
         <p className="muted">
           {f.occurrences} occurrence{f.occurrences === 1 ? '' : 's'} on this page · rule {f.ruleId}
-          {f.reviewStatus !== 'open' ? ` · ${f.reviewStatus.replaceAll('_', ' ')}` : ''}
+        </p>
+        <p id="workflow-summary">
+          <strong>Status:</strong> {f.reviewStatus.replaceAll('_', ' ')} · <strong>Owner:</strong>{' '}
+          {who(f.assigneeId)} · <a href="#workflow">Change status or owner</a> ·{' '}
+          <a href="#discussion">
+            Comments ({activity.data ? String(activity.data.comments.length) : '…'})
+          </a>
         </p>
       </div>
 

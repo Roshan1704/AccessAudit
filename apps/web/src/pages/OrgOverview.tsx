@@ -41,6 +41,93 @@ function Step({
   );
 }
 
+/**
+ * Adaptive onboarding. No project: full list. Project but no completed scan: only the remaining
+ * steps. A completed scan exists: collapsed, still reachable.
+ */
+function Onboarding({
+  orgId,
+  orgName,
+  hasProject,
+  hasScan,
+  canCreate,
+  canInvite,
+}: {
+  orgId: string;
+  orgName: string;
+  hasProject: boolean;
+  hasScan: boolean;
+  canCreate: boolean;
+  canInvite: boolean;
+}) {
+  const steps = [
+    {
+      key: 'org',
+      done: true,
+      title: 'Create your organization',
+      body: <>{orgName} is ready.</>,
+    },
+    {
+      key: 'project',
+      done: hasProject,
+      title: 'Add a project',
+      body: (
+        <>
+          A project is the website you audit.{' '}
+          {!hasProject && canCreate ? <Link href={`/orgs/${orgId}/projects`}>Add one</Link> : null}
+        </>
+      ),
+    },
+    {
+      key: 'invite',
+      done: false,
+      title: 'Invite your team (optional)',
+      body: (
+        <>
+          Give colleagues access to results.{' '}
+          {canInvite ? <Link href={`/orgs/${orgId}/members`}>Invite someone</Link> : null}
+        </>
+      ),
+    },
+    {
+      key: 'scan',
+      done: hasScan,
+      title: 'Run your first scan',
+      body: (
+        <>
+          Open a project, verify its domain, then choose Scan now. Results appear in the scan report
+          with evidence for every finding.
+        </>
+      ),
+    },
+  ];
+  const visible = hasProject ? steps.filter((s) => !s.done) : steps;
+  const list = (
+    <ol className="steps">
+      {visible.map((s) => (
+        <Step key={s.key} n={steps.indexOf(s) + 1} done={s.done} title={s.title}>
+          {s.body}
+        </Step>
+      ))}
+    </ol>
+  );
+  if (hasScan) {
+    return (
+      <details className="card onboarding-collapsed" data-testid="onboarding-collapsed">
+        <summary>Getting started (setup complete, optional steps remain)</summary>
+        {list}
+      </details>
+    );
+  }
+  return (
+    <section className="card" aria-labelledby="steps-heading" data-testid="onboarding-full">
+      <h2 id="steps-heading">Getting started</h2>
+      {hasProject ? <p className="muted">Remaining steps to your first report.</p> : null}
+      {list}
+    </section>
+  );
+}
+
 const SEVERITIES: Severity[] = ['critical', 'serious', 'moderate', 'minor'];
 
 function countText(m: SeverityCounts): string {
@@ -86,6 +173,40 @@ function buildQueue(orgId: string, projects: OverviewProject[]): QueueItem[] {
     });
   }
   return items.sort((a, b) => b.weight - a.weight);
+}
+
+const ACTIVITY_INITIAL = 4;
+
+export function ActivityPage() {
+  const { orgId, org } = useOrg();
+  const overview = useAsync(() => api<Overview>('GET', `/orgs/${orgId}/overview`), orgId);
+  if (!org) return <EmptyState title="Organization not found">No access.</EmptyState>;
+  return (
+    <>
+      <p style={{ margin: '0 0 0.75rem' }}>
+        <Link href={`/orgs/${orgId}`}>&larr; Back to overview</Link>
+      </p>
+      <PageHeader title="Recent activity" description={org.name} />
+      {overview.loading && !overview.data ? <Loading label="Loading activity" /> : null}
+      <ErrorAlert error={overview.error} onRetry={overview.reload} />
+      {overview.data ? (
+        <section className="card" aria-label="All recent activity">
+          {overview.data.recentActivity.length === 0 ? (
+            <p className="muted">No activity yet.</p>
+          ) : (
+            <ul className="compact-list">
+              {overview.data.recentActivity.map((a, i) => (
+                <li key={`${a.at}-${String(i)}`}>
+                  <Link href={activityHref(orgId, a.href)}>{a.text}</Link>{' '}
+                  <span className="muted">{new Date(a.at).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+    </>
+  );
 }
 
 function activityHref(orgId: string, h: OverviewActivity['href']): string {
@@ -181,15 +302,21 @@ function Attention({ orgId, data }: { orgId: string; data: Overview }) {
         {data.recentActivity.length === 0 ? (
           <p className="muted">No activity yet.</p>
         ) : (
-          <ul>
-            {data.recentActivity.map((a, i) => (
-              <li key={`${a.at}-${String(i)}`}>
-                <Link href={activityHref(orgId, a.href)}>{a.text}</Link>
-                <br />
-                <span className="muted">{new Date(a.at).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="compact-list">
+              {data.recentActivity.slice(0, ACTIVITY_INITIAL).map((a, i) => (
+                <li key={`${a.at}-${String(i)}`}>
+                  <Link href={activityHref(orgId, a.href)}>{a.text}</Link>{' '}
+                  <span className="muted">{new Date(a.at).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+            <p>
+              <Link href={`/orgs/${orgId}/activity`}>
+                View all activity ({data.recentActivity.length})
+              </Link>
+            </p>
+          </>
         )}
       </section>
     </div>
@@ -279,28 +406,14 @@ export default function OrgOverview() {
       ) : null}
 
       {list ? (
-        <section className="card" aria-labelledby="steps-heading">
-          <h2 id="steps-heading">Getting started</h2>
-          <ol className="steps">
-            <Step n={1} done title="Create your organization">
-              {org.name} is ready.
-            </Step>
-            <Step n={2} done={hasProject} title="Add a project">
-              A project is the website you audit.{' '}
-              {!hasProject && canCreate ? (
-                <Link href={`/orgs/${orgId}/projects`}>Add one</Link>
-              ) : null}
-            </Step>
-            <Step n={3} done={false} title="Invite your team (optional)">
-              Give colleagues access to results.{' '}
-              {canInvite ? <Link href={`/orgs/${orgId}/members`}>Invite someone</Link> : null}
-            </Step>
-            <Step n={4} done={false} title="Run your first scan">
-              Open a project, verify its domain, then choose Scan now. Results appear in the scan
-              report with evidence for every finding.
-            </Step>
-          </ol>
-        </section>
+        <Onboarding
+          orgId={orgId}
+          orgName={org.name}
+          hasProject={hasProject}
+          hasScan={list.some((p) => p.latestScan !== null)}
+          canCreate={canCreate}
+          canInvite={canInvite}
+        />
       ) : null}
 
       {hasProject && list ? (

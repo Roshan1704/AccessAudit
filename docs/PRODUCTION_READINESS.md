@@ -2,7 +2,7 @@
 
 > Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
 
-Date: 2026-11-12 · Tree: uncommitted on 3cfd471 · **Verdict: NOT ready for production release.**
+Date: 2026-11-16 · Current state: see the authoritative table in `docs/PROJECT_STATUS.md` · **Verdict: NOT ready for production release.** (Earlier text below is historical. The latest UI round passed Vitest 295 and Playwright 26 on 2026-11-16; manual accessibility testing is still not done.)
 
 Critical requirements from the Phase 5 brief are unimplemented, and the newest code has not been through a full test run. Nothing below should be read as a readiness claim.
 

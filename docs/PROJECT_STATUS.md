@@ -1,12 +1,28 @@
 # Project Status Register
 
-Date: 2026-11-13 · Current phase: **5 (hardening, production readiness) built and awaiting Product Manager acceptance. Verdict in `docs/PRODUCTION_READINESS.md`: NOT ready until authenticated scanning (ADR-031) is verified by running migration 0010 and its tests. Nothing is committed.**
+Date: 2026-11-16 · **Verdict: MVP feature set code-complete (T0 to T10); NOT production ready.** See `docs/PRODUCTION_READINESS.md`.
+
+## Authoritative current status (read this first)
+
+This section replaces every earlier "Phase N awaiting review" or "nothing is committed" statement. Older phase text below is historical.
+
+| Category                 | State                                                                                                                                                                                                                                                                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Committed implementation | Local `git log` shows one commit, 3cfd471 (Phase 0 scaffold and design docs). The implementation (about 148 changed or new paths) is in the working tree and is committed by the owner, not by tooling. A commit the PM cites (c124aa0) is not in this local history; check which branch or remote it is on before relying on it. |
+| Locally verified         | 2026-11-16, after the latest UI round: Vitest 31 files / 295 tests passed; Playwright 26 passed (Chrome, 1.9 min, fresh review DB); screenshots regenerated (product 72, journey 10, widths 82). tsc, eslint, prettier re-run at the end of the round.                                                                            |
+| Automated tests, latest  | 2026-11-16: Vitest 295/295, Playwright 26/26, including the new `e2e/review-fixes.spec.ts` (onboarding, compact activity and route, workflow summary, evidence captions, dialog keyboard behaviour). An earlier failure of 65 tests was only `ECONNREFUSED` with Docker down.                                                     |
+| Manually verified        | Visual review of screenshots only. No hands-on keyboard pass, no screen reader pass, no non-Chrome browser pass. Automated reflow checks at 320/768/1280 px exist.                                                                                                                                                                |
+| Outstanding defects      | None known open. The latest UI changes passed automated checks against live demo data in Chrome only; no human has used them. The old dev DB still holds the previous demo org (append-only `audit_logs` blocks deletion); use a fresh database to see the new demo story.                                                        |
+| Production blockers      | Listed in `docs/PRODUCTION_READINESS.md` (still NOT ready). Includes: no manual accessibility testing, no non-Chrome testing, no load or security test of a deployed environment, LLM remediation text is templates (not AI) for the MVP.                                                                                         |
+| Deferred features        | Journeys, custom rules, scheduling, integrations, public API/CLI, billing, real AI remediation.                                                                                                                                                                                                                                   |
+
+Still open: manual keyboard pass, screen reader pass, non-Chrome browsers.
 
 ## Current verified baseline (2026-11-13, single authority for test status)
 
 This section is the authority for test and verification status. Older figures in the phase sections below (and in TESTING_STRATEGY and TRACEABILITY_MATRIX) are historical; where they differ, this section wins. The earlier 20 files / 242 tests and 21 files / 246 tests figures came from different points in time and are not reconciled with a current run.
 
-Environment: Windows 11, PowerShell, Node v24.22.2, Vitest 5.1.0, Vite 8.3.8. Dev PostgreSQL 16 in Docker on 127.0.0.1:5433, dev Redis on 6379. Working tree on 3cfd471, uncommitted.
+Environment: Windows 11, PowerShell, Node v24.22.2, Vitest 5.1.0, Vite 8.3.8. Dev PostgreSQL 16 in Docker on 127.0.0.1:5433, dev Redis on 6379. Historical run on a working tree based on 3cfd471.
 
 | Check                                                                                                                                               | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

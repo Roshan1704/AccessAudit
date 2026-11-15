@@ -2,9 +2,9 @@
 
 Accessibility intelligence platform. MVP goal: safe scanning of verified public sites with axe-core, validated findings with evidence, remediation guidance, and scan comparison. Authenticated crawling, journeys, custom rules, scheduling, integrations, public API/CLI and billing are deferred (see the roadmap).
 
-**Status: Phase 2 (merged phases 2 to 4: scanning engine, findings and review UI, anonymous quick check) built and awaiting Product Manager review.** See [PROJECT_STATUS](docs/PROJECT_STATUS.md) for what is and is not verified.
+**Status: MVP feature set code-complete (T0 to T10). Not production ready.** The authoritative breakdown (committed, verified, tested, manual, defects, blockers, deferred) is in [PROJECT_STATUS](docs/PROJECT_STATUS.md); the release verdict is in [PRODUCTION_READINESS](docs/PRODUCTION_READINESS.md). Remediation text is template based, not AI. Screenshots for review are in [docs/design-review](docs/design-review/README.md).
 
-## What works in Phase 2
+## What works (scanning, findings, quick check)
 
 - Scans of verified domains: safe crawler (SSRF gate, egress proxy, isolated Chrome), axe-core plus read-only interaction checks, WCAG 2.2 mapping, rule registry.
 - Findings are classified as confirmed violation, potential violation or manual verification, each with evidence. There is no single accessibility score.
@@ -13,7 +13,7 @@ Accessibility intelligence platform. MVP goal: safe scanning of verified public 
 - The worker (`apps/worker`) needs `WORKER_DATABASE_URL` (the `aa_worker` role) and Redis (`REDIS_URL`); the API needs Redis too. Run it with `npx tsx apps/worker/src/main.ts`. Browser: set `BROWSER_CHANNEL=chrome` to use installed Chrome.
 - Extra test variables: `TEST_WORKER_DATABASE_URL` (worker DB tests) and `TEST_REDIS_URL` (quick-check Redis test). Playwright end to end: `npx playwright test` with the stack running.
 
-## What works in Phase 1
+## What works (accounts and organizations)
 
 - Registration, login, logout, password recovery (tokens are logged by a development mailer, not emailed).
 - Organizations, memberships, roles (owner, admin, member, viewer), invitations.

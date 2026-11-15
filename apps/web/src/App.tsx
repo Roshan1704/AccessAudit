@@ -6,7 +6,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import Home from '@/pages/Home';
 import Login from '@/pages/Login';
 import Members from '@/pages/Members';
-import OrgOverview from '@/pages/OrgOverview';
+import OrgOverview, { ActivityPage } from '@/pages/OrgOverview';
 import Orgs from '@/pages/Orgs';
 import ProjectDetail from '@/pages/ProjectDetail';
 import Projects from '@/pages/Projects';
@@ -33,6 +33,7 @@ export function App() {
         <Route path="/account" element={<Account />} />
         <Route path="/orgs" element={<Orgs />} />
         <Route path="/orgs/:orgId" element={<OrgOverview />} />
+        <Route path="/orgs/:orgId/activity" element={<ActivityPage />} />
         <Route path="/orgs/:orgId/members" element={<Members />} />
         <Route path="/orgs/:orgId/settings" element={<Settings />} />
         <Route path="/orgs/:orgId/projects" element={<Projects />} />

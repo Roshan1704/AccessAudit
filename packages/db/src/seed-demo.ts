@@ -589,7 +589,11 @@ async function main(): Promise<void> {
               : page.status;
             if (pageStatus !== 'scanned') continue;
             const print = fp(f.rule, f.selector, page.path);
-            const review = (phase.late ? f.lateReview : f.earlyReview) ?? 'open';
+            // Story: detected in the first scan, investigated, assigned, fix recorded; if the next
+            // scan no longer reports it, that scan is what verifies the fix.
+            const resolvedLater = !phase.late && !f.late && f.cls === 'confirmed';
+            const review =
+              (phase.late ? f.lateReview : f.earlyReview) ?? (resolvedLater ? 'fixed' : 'open');
             const findingId = randomUUID();
             await tx.insert(findings).values({
               id: findingId,
@@ -607,8 +611,11 @@ async function main(): Promise<void> {
               occurrences: f.occ,
               reviewStatus: review,
               reviewedBy: review === 'open' ? null : reviewerId,
-              reviewedAt: review === 'open' ? null : new Date(phase.when + 3_600_000),
-              assigneeId: f.cls === 'confirmed' && review === 'open' ? reviewerId : null,
+              reviewedAt:
+                review === 'open'
+                  ? null
+                  : new Date(phase.when + (phase.late ? 3_600_000 : 30 * 3_600_000)),
+              assigneeId: f.cls === 'confirmed' ? reviewerId : null,
               createdAt: new Date(phase.when),
             });
             findingIdByFp.set(`${scanId}:${print}`, findingId);
@@ -639,23 +646,17 @@ async function main(): Promise<void> {
                 organizationId: orgId,
                 findingId,
                 kind: 'screenshot',
-                content: { caption: 'Illustrative screenshot (demo data)' },
+                content: {
+                  caption: 'Illustrative sample image (demo data)',
+                  origin: 'demo_sample',
+                  annotated: false,
+                },
                 blobBase64: shot,
                 contentType: 'image/png',
               },
             ]);
-            if (review !== 'open') {
-              await tx.insert(findingHistory).values({
-                organizationId: orgId,
-                findingId,
-                actorId: reviewerId,
-                kind: 'status',
-                fromValue: 'open',
-                toValue: review,
-                createdAt: new Date(phase.when + 3_600_000),
-              });
-            }
-            if (f.cls === 'confirmed' && review === 'open') {
+            const H = 3_600_000;
+            if (f.cls === 'confirmed') {
               await tx.insert(findingHistory).values({
                 organizationId: orgId,
                 findingId,
@@ -663,8 +664,38 @@ async function main(): Promise<void> {
                 kind: 'assignee',
                 fromValue: null,
                 toValue: reviewerId,
-                createdAt: new Date(phase.when + 1_800_000),
+                createdAt: new Date(phase.when + H / 2),
               });
+              if (!phase.late) {
+                await tx.insert(findingComments).values({
+                  organizationId: orgId,
+                  findingId,
+                  authorId: reviewerId,
+                  body: `Reproduced on ${page.path}. Checked the markup and the cause matches the evidence.`,
+                  createdAt: new Date(phase.when + 5 * H),
+                });
+              }
+            }
+            if (review !== 'open') {
+              // Review decisions are recorded a day after detection, not in the same hour.
+              await tx.insert(findingHistory).values({
+                organizationId: orgId,
+                findingId,
+                actorId: reviewerId,
+                kind: 'status',
+                fromValue: 'open',
+                toValue: review,
+                createdAt: new Date(phase.when + (phase.late ? H : 30 * H)),
+              });
+              if (resolvedLater) {
+                await tx.insert(findingComments).values({
+                  organizationId: orgId,
+                  findingId,
+                  authorId: ownerId,
+                  body: 'Fix is merged. Marked fixed; the next scan will show whether it holds.',
+                  createdAt: new Date(phase.when + 30 * H),
+                });
+              }
             }
             if (f.comment && phase.late) {
               await tx.insert(findingComments).values({

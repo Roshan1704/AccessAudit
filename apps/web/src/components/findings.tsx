@@ -183,30 +183,62 @@ function ScreenshotPreview({ e }: { e: EvidenceItem }) {
   const ref = useRef<HTMLDialogElement>(null);
   const src = `data:${e.contentType ?? 'image/png'};base64,${e.blobBase64 ?? ''}`;
   const label = e.kind.replaceAll('_', ' ');
+  const kind = screenshotKind(e.content);
   return (
     <figure className="shot-figure">
       <button
         type="button"
         className="shot-open"
         onClick={() => ref.current?.showModal()}
-        aria-label={`Open larger view of ${label}`}
+        aria-label={`Open larger view of ${label}. ${kind.badge}`}
+        aria-haspopup="dialog"
       >
-        <img className="shot" src={src} alt={`Screenshot evidence: ${label}`} />
+        <img className="shot" src={src} alt={`${kind.badge}: ${label}`} />
       </button>
       <figcaption className="muted">
-        Screenshot of the page when it was scanned. The affected element is not outlined because its
-        position was not recorded reliably; use the selector below to find it.
+        <strong>{kind.badge}.</strong> {kind.text}
       </figcaption>
-      <dialog ref={ref} className="shot-dialog" aria-label={`Larger view of ${label}`}>
-        <img src={src} alt={`Larger screenshot: ${label}`} />
+      <dialog
+        ref={ref}
+        className="shot-dialog"
+        aria-label={`Larger view of ${label}`}
+        onClick={(ev) => {
+          if (ev.target === ev.currentTarget) ref.current?.close();
+        }}
+      >
+        <img src={src} alt={`Larger view. ${kind.badge}: ${label}`} />
         <form method="dialog">
-          <button type="submit" className="btn">
+          <button type="submit" className="btn" autoFocus>
             Close
           </button>
         </form>
       </dialog>
     </figure>
   );
+}
+
+/**
+ * What the stored image actually is. Only evidence that explicitly says it carries an
+ * AccessAudit annotation is described as annotated; nothing is inferred from pixels.
+ */
+function screenshotKind(content: unknown): { badge: string; text: string } {
+  const c = (content ?? {}) as Record<string, unknown>;
+  if (c.origin === 'demo_sample') {
+    return {
+      badge: 'Sample image (demo data)',
+      text: 'This is an illustration, not a capture of a real page. The red box is part of the illustration and does not mark a measured element position.',
+    };
+  }
+  if (c.annotated === true) {
+    return {
+      badge: 'Annotated by AccessAudit',
+      text: 'The red box was drawn by AccessAudit around the affected element at scan time.',
+    };
+  }
+  return {
+    badge: 'Original scan screenshot',
+    text: 'Captured during the scan and not annotated. The affected element is not outlined; use the selector to find it.',
+  };
 }
 
 /**
@@ -287,7 +319,6 @@ export function EvidenceView({
   const isImage = Boolean(blobBase64) && mime.startsWith('image/');
   return (
     <div className="stack">
-      <h4 style={{ margin: 0, textTransform: 'capitalize' }}>{kind.replaceAll('_', ' ')}</h4>
       {text ? <pre className="evidence">{text}</pre> : null}
       {isImage ? (
         <img
