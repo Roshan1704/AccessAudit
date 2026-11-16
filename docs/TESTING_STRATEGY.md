@@ -1,5 +1,7 @@
 # Testing Strategy
 
+> **Note (2026-11-16):** dated results and counts in this document are historical. Current test status is only in [PROJECT_STATUS](PROJECT_STATUS.md), section "Authoritative current status".
+
 > Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
 
 Status: Draft v0.1 · Date: 2026-11-11

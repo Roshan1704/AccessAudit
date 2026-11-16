@@ -2,7 +2,7 @@
 
 Accessibility intelligence platform. MVP goal: safe scanning of verified public sites with axe-core, validated findings with evidence, remediation guidance, and scan comparison. Authenticated crawling, journeys, custom rules, scheduling, integrations, public API/CLI and billing are deferred (see the roadmap).
 
-**Status: MVP feature set code-complete (T0 to T10). Not production ready.** The authoritative breakdown (committed, verified, tested, manual, defects, blockers, deferred) is in [PROJECT_STATUS](docs/PROJECT_STATUS.md); the release verdict is in [PRODUCTION_READINESS](docs/PRODUCTION_READINESS.md). Remediation text is template based, not AI. Screenshots for review are in [docs/design-review](docs/design-review/README.md).
+**Status: MVP feature set code-complete (T0 to T10). Not production ready.** The authoritative breakdown (committed, verified, tested, manual, defects, blockers, deferred) is in [PROJECT_STATUS](docs/PROJECT_STATUS.md); the release verdict is in [PRODUCTION_READINESS](docs/PRODUCTION_READINESS.md). Latest local verification (2026-11-16, working tree): Vitest 295/295, Playwright 26/26 in Chrome; manual keyboard, screen reader and non-Chrome testing are not done ([protocol](docs/MANUAL_ACCESSIBILITY_VALIDATION.md)). Remediation text is template based, not AI. Screenshots for review are in [docs/design-review](docs/design-review/README.md).
 
 ## What works (scanning, findings, quick check)
 

@@ -74,7 +74,11 @@ function Onboarding({
       body: (
         <>
           A project is the website you audit.{' '}
-          {!hasProject && canCreate ? <Link href={`/orgs/${orgId}/projects`}>Add one</Link> : null}
+          {canCreate ? (
+            <Link href={`/orgs/${orgId}/projects`}>Add a project</Link>
+          ) : (
+            'Ask a member or admin to add one.'
+          )}
         </>
       ),
     },
@@ -223,7 +227,7 @@ function Attention({ orgId, data }: { orgId: string; data: Overview }) {
   );
   const manual = data.projects.filter((p) => (p.latestScan?.manualTasksOpen ?? 0) > 0);
   return (
-    <div className="grid-cards" style={{ marginBottom: '1rem' }}>
+    <div className="grid-cards attention-grid" style={{ marginBottom: '1rem' }}>
       <section className="card" aria-labelledby="ov-critical">
         <h2 id="ov-critical">Confirmed critical and serious</h2>
         {data.topFindings.length === 0 ? (
@@ -392,8 +396,8 @@ export default function OrgOverview() {
         <section className="hero" aria-labelledby="start-heading">
           <h2 id="start-heading">Welcome to {org.name}</h2>
           <p className="muted">
-            AccessAudit checks your websites against WCAG 2.2 AA. Start by adding the site you want
-            to audit as a project.
+            AccessAudit checks your websites against WCAG 2.2 AA and shows evidence for every
+            finding.
           </p>
           {canCreate ? (
             <Link href={`/orgs/${orgId}/projects`} className="btn">

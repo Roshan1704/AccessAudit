@@ -2,7 +2,7 @@
 
 > Test and verification status: the single authority is [PROJECT_STATUS](PROJECT_STATUS.md), section "Current verified baseline". Figures below are historical.
 
-Date: 2026-11-16 · Current state: see the authoritative table in `docs/PROJECT_STATUS.md` · **Verdict: NOT ready for production release.** (Earlier text below is historical. The latest UI round passed Vitest 295 and Playwright 26 on 2026-11-16; manual accessibility testing is still not done.)
+Date: 2026-11-16 · Current state: see the authoritative table in `docs/PROJECT_STATUS.md` · **Verdict: NOT ready for production release.** (Earlier text below is historical. Latest verified on the local working tree, 2026-11-16: Vitest 295/295 and Playwright 26/26 in Chrome. Manual accessibility testing is NOT done: see `docs/MANUAL_ACCESSIBILITY_VALIDATION.md`. GitHub `main` 26d87ed is PM-reported and not verified from this checkout.)
 
 Critical requirements from the Phase 5 brief are unimplemented, and the newest code has not been through a full test run. Nothing below should be read as a readiness claim.
 

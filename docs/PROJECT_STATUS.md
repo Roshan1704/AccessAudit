@@ -6,21 +6,22 @@ Date: 2026-11-16 · **Verdict: MVP feature set code-complete (T0 to T10); NOT pr
 
 This section replaces every earlier "Phase N awaiting review" or "nothing is committed" statement. Older phase text below is historical.
 
-| Category                 | State                                                                                                                                                                                                                                                                                                                             |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Committed implementation | Local `git log` shows one commit, 3cfd471 (Phase 0 scaffold and design docs). The implementation (about 148 changed or new paths) is in the working tree and is committed by the owner, not by tooling. A commit the PM cites (c124aa0) is not in this local history; check which branch or remote it is on before relying on it. |
-| Locally verified         | 2026-11-16, after the latest UI round: Vitest 31 files / 295 tests passed; Playwright 26 passed (Chrome, 1.9 min, fresh review DB); screenshots regenerated (product 72, journey 10, widths 82). tsc, eslint, prettier re-run at the end of the round.                                                                            |
-| Automated tests, latest  | 2026-11-16: Vitest 295/295, Playwright 26/26, including the new `e2e/review-fixes.spec.ts` (onboarding, compact activity and route, workflow summary, evidence captions, dialog keyboard behaviour). An earlier failure of 65 tests was only `ECONNREFUSED` with Docker down.                                                     |
-| Manually verified        | Visual review of screenshots only. No hands-on keyboard pass, no screen reader pass, no non-Chrome browser pass. Automated reflow checks at 320/768/1280 px exist.                                                                                                                                                                |
-| Outstanding defects      | None known open. The latest UI changes passed automated checks against live demo data in Chrome only; no human has used them. The old dev DB still holds the previous demo org (append-only `audit_logs` blocks deletion); use a fresh database to see the new demo story.                                                        |
-| Production blockers      | Listed in `docs/PRODUCTION_READINESS.md` (still NOT ready). Includes: no manual accessibility testing, no non-Chrome testing, no load or security test of a deployed environment, LLM remediation text is templates (not AI) for the MVP.                                                                                         |
-| Deferred features        | Journeys, custom rules, scheduling, integrations, public API/CLI, billing, real AI remediation.                                                                                                                                                                                                                                   |
+| Category                | State                                                                                                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remote (GitHub) state   | GitHub `main` HEAD is **26d87ed**, as reported by the PM, with the implementation committed. **Not verifiable from this checkout**: it has no remote configured and its local `git log` holds only 3cfd471. Owner to confirm the real remote HEAD before release.          |
+| Local working tree      | Local `main` is at 3cfd471 (Phase 0 scaffold and design docs) with about 148 changed or new paths uncommitted. This tree may differ from 26d87ed. Tooling never commits or pushes; the owner does. Every test result below is for this working tree, not for 26d87ed.      |
+| Locally verified        | 2026-11-16, after the latest UI round: Vitest 31 files / 295 tests passed; Playwright 26 passed (Chrome, 2.9 min, fresh review DB `accessaudit_review2`); screenshots regenerated (product 72, journey 10, widths 82). tsc, eslint, prettier clean.                        |
+| Automated tests, latest | 2026-11-16: Vitest 295/295, Playwright 26/26 (Chrome, automated only), including `e2e/review-fixes.spec.ts` and the execution/coverage badge assertion in `e2e/demo-journey.spec.ts`. An earlier failure of 65 tests was only `ECONNREFUSED` with Docker down.             |
+| Manually verified       | Visual review of screenshots only. No hands-on keyboard pass, no screen reader pass, no non-Chrome browser pass. Automated reflow checks at 320/768/1280 px exist.                                                                                                         |
+| Outstanding defects     | None known open. The latest UI changes passed automated checks against live demo data in Chrome only; no human has used them. The old dev DB still holds the previous demo org (append-only `audit_logs` blocks deletion); use a fresh database to see the new demo story. |
+| Production blockers     | Listed in `docs/PRODUCTION_READINESS.md` (still NOT ready). Includes: no manual accessibility testing, no non-Chrome testing, no load or security test of a deployed environment, LLM remediation text is templates (not AI) for the MVP.                                  |
+| Deferred features       | Journeys, custom rules, scheduling, integrations, public API/CLI, billing, real AI remediation.                                                                                                                                                                            |
 
 Still open: manual keyboard pass, screen reader pass, non-Chrome browsers.
 
-## Current verified baseline (2026-11-13, single authority for test status)
+## HISTORICAL: earlier baseline (2026-11-13). Superseded by the table above
 
-This section is the authority for test and verification status. Older figures in the phase sections below (and in TESTING_STRATEGY and TRACEABILITY_MATRIX) are historical; where they differ, this section wins. The earlier 20 files / 242 tests and 21 files / 246 tests figures came from different points in time and are not reconciled with a current run.
+Kept for the record only. For current test status use "Authoritative current status" above. Older figures here and in TESTING_STRATEGY and TRACEABILITY_MATRIX are historical; where they differ, the authoritative table wins. The earlier 20 files / 242 tests and 21 files / 246 tests figures came from different points in time and are not reconciled with a current run.
 
 Environment: Windows 11, PowerShell, Node v24.22.2, Vitest 5.1.0, Vite 8.3.8. Dev PostgreSQL 16 in Docker on 127.0.0.1:5433, dev Redis on 6379. Historical run on a working tree based on 3cfd471.
 
@@ -38,7 +39,9 @@ Test repairs made while establishing this baseline: e2e password selectors now u
 
 Notes: Vitest fails every suite when started from Git Bash in this environment and passes from PowerShell; cause not investigated. Without the `TEST_*` variables, 13 files (85 tests) skip; they are listed in TESTING_STRATEGY. The `docs/PRODUCTION_READINESS.md` verdict stays NOT ready.
 
-## Phase 5 progress (2026-11-12, in progress, uncommitted)
+> **HISTORICAL sections follow (Phase 5, 4, 3, 2).** They record what was true on the dates shown, with older test counts. They are not current status.
+
+## Phase 5 progress (2026-11-12, HISTORICAL)
 
 Built: read-only `GET /orgs/{orgId}/overview` (latest completed scan per project, open confirmed and potential counts by severity, pending manual tasks, pages scanned versus not scanned, no composite score, no migration); organization overview page now shows these counts with a coverage caveat and keeps the getting-started checklist.
 
@@ -153,4 +156,5 @@ Decisions 1 to 9 (PM-approved 2026-11-11) unchanged. ADR-023 Vite + React. Added
 - Original master spec is not in the repo as a file; docs cite it by Part number.
 - Internal or staging hosts cannot be verified; accepted MVP limitation.
 - Vitest failed from Git Bash in this environment but passes from PowerShell. Use PowerShell.
-- Nothing is committed. A commit needs explicit approval.
+- Commit state: see "Remote (GitHub) state" and "Local working tree" at the top. Tooling never commits or pushes.
+- Manual accessibility validation: protocol and results sheet in `docs/MANUAL_ACCESSIBILITY_VALIDATION.md`, every row NOT DONE, pending a human.

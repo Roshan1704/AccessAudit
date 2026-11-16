@@ -1621,3 +1621,22 @@ section.card .compact-list + p {
   margin: 0.5rem 0 0.75rem;
   font-size: 0.9rem;
 }
+
+.badge.complete {
+  color: var(--color-ok);
+  background: var(--color-ok-soft);
+  border-color: #bbf7d0;
+}
+.badge.incomplete {
+  color: var(--color-warn);
+  background: var(--color-warn-soft);
+  border-color: #fde68a;
+}
+
+.attention-grid {
+  align-items: start;
+}
+.attention-grid .card p:last-child,
+.attention-grid .card ul:last-child {
+  margin-bottom: 0;
+}

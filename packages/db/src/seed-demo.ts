@@ -534,6 +534,8 @@ async function main(): Promise<void> {
           { when: now - 1 * DAY, late: true },
         ];
         for (const phase of phases) {
+          let seq = 0; // staggers per-finding events so activity is not stamped with one instant
+          const MIN = 60_000;
           const scanId = randomUUID();
           scanIds.push(scanId);
           await tx.insert(scans).values({
@@ -595,6 +597,7 @@ async function main(): Promise<void> {
             const review =
               (phase.late ? f.lateReview : f.earlyReview) ?? (resolvedLater ? 'fixed' : 'open');
             const findingId = randomUUID();
+            seq += 1;
             await tx.insert(findings).values({
               id: findingId,
               organizationId: orgId,
@@ -664,7 +667,7 @@ async function main(): Promise<void> {
                 kind: 'assignee',
                 fromValue: null,
                 toValue: reviewerId,
-                createdAt: new Date(phase.when + H / 2),
+                createdAt: new Date(phase.when + H / 2 + seq * 7 * MIN),
               });
               if (!phase.late) {
                 await tx.insert(findingComments).values({
@@ -672,7 +675,7 @@ async function main(): Promise<void> {
                   findingId,
                   authorId: reviewerId,
                   body: `Reproduced on ${page.path}. Checked the markup and the cause matches the evidence.`,
-                  createdAt: new Date(phase.when + 5 * H),
+                  createdAt: new Date(phase.when + 5 * H + seq * 23 * MIN),
                 });
               }
             }
@@ -685,7 +688,7 @@ async function main(): Promise<void> {
                 kind: 'status',
                 fromValue: 'open',
                 toValue: review,
-                createdAt: new Date(phase.when + (phase.late ? H : 30 * H)),
+                createdAt: new Date(phase.when + (phase.late ? H : 30 * H) + seq * 11 * MIN),
               });
               if (resolvedLater) {
                 await tx.insert(findingComments).values({
@@ -693,7 +696,7 @@ async function main(): Promise<void> {
                   findingId,
                   authorId: ownerId,
                   body: 'Fix is merged. Marked fixed; the next scan will show whether it holds.',
-                  createdAt: new Date(phase.when + 30 * H),
+                  createdAt: new Date(phase.when + 31 * H + seq * 13 * MIN),
                 });
               }
             }
@@ -703,12 +706,12 @@ async function main(): Promise<void> {
                 findingId,
                 authorId: reviewerId,
                 body: f.comment,
-                createdAt: new Date(now - 6 * 3_600_000),
+                createdAt: new Date(now - 7 * H + seq * 37 * MIN),
               });
             }
           }
           if (phase.late) {
-            for (const m of spec.manual) {
+            for (const [mi, m] of spec.manual.entries()) {
               await tx.insert(manualVerificationTasks).values({
                 organizationId: orgId,
                 scanId,
@@ -717,7 +720,7 @@ async function main(): Promise<void> {
                 status: m.resolved ?? 'pending',
                 note: m.note ?? null,
                 resolvedBy: m.resolved ? reviewerId : null,
-                resolvedAt: m.resolved ? new Date(now - 5 * 3_600_000) : null,
+                resolvedAt: m.resolved ? new Date(now - 4 * 3_600_000 - mi * 17 * MIN) : null,
               });
             }
           }

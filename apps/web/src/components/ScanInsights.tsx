@@ -117,11 +117,8 @@ export function CompareCard({ orgId, scanId }: { orgId: string; scanId: string }
   );
 }
 
-export function CoverageLimits({ orgId, scanId }: { orgId: string; scanId: string }) {
-  const r = useAsync(
-    () => api<Coverage>('GET', `/orgs/${orgId}/scans/${scanId}/coverage`),
-    `cov-${scanId}`,
-  );
+export function CoverageLimits({ coverage }: { coverage: Coverage | null }) {
+  const r = { data: coverage };
   if (!r.data) return null;
   return (
     <>

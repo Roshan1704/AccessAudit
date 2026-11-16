@@ -88,6 +88,9 @@ test('project -> report -> finding -> evidence -> status -> comment -> compare -
   await expect(page).toHaveURL(/\/scans\/[0-9a-f-]{36}$/);
   await expect(page.getByTestId('finding-counts')).toBeVisible();
   await expect(page.getByTestId('coverage-counts')).toBeVisible();
+  // Execution status and coverage status are separate, and a completed job is not shown as complete coverage.
+  await expect(page.getByText('Execution:').first()).toBeVisible();
+  await expect(page.locator('.badge.incomplete, .badge.complete').first()).toBeVisible();
   await expect(page.getByTestId('next-actions')).toBeVisible();
   await noOverflow(page, 'report');
   await shoot(page, '03-report');

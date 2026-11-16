@@ -22,6 +22,7 @@ import {
   CLASS_LABEL,
   api,
   type Classification,
+  type Coverage,
   type FindingRow,
   type ScanDetail,
 } from '@/lib/api';
@@ -243,6 +244,10 @@ export default function ScanReport() {
   const { orgId } = useOrg();
   const { scanId } = useParams<{ scanId: string }>();
   const d = useAsync(() => api<ScanDetail>('GET', `/orgs/${orgId}/scans/${scanId}`), scanId);
+  const cov = useAsync(
+    () => api<Coverage>('GET', `/orgs/${orgId}/scans/${scanId}/coverage`),
+    `cov-${scanId}-${d.data?.scan.status ?? ''}`,
+  );
   const active = d.data?.scan.status === 'queued' || d.data?.scan.status === 'running';
   const { reload } = d;
   const [preset, setPreset] = useState<Preset>({ n: 0, cls: '', sev: '' });
@@ -273,6 +278,14 @@ export default function ScanReport() {
   const skippedPages = pages.filter((p) => p.status === 'skipped');
   const excludedPages = skippedPages.filter((p) => p.failureReason === 'excluded_by_robots');
   const notScanned = pages.filter((p) => p.status !== 'scanned');
+  const otherSkipped = skippedPages.length - excludedPages.length;
+  const incompleteReasons = [
+    failedPages.length > 0 ? `${String(failedPages.length)} failed` : '',
+    otherSkipped > 0 ? `${String(otherSkipped)} skipped` : '',
+    excludedPages.length > 0 ? `${String(excludedPages.length)} excluded by robots.txt` : '',
+    cov.data?.reachedPageLimit ? 'page limit reached' : '',
+  ].filter(Boolean);
+  const coverageComplete = incompleteReasons.length === 0;
 
   return (
     <>
@@ -282,8 +295,28 @@ export default function ScanReport() {
       <PageHeader
         title="Scan report"
         description={`${scan.startUrl} · WCAG ${scan.wcagVersion} ${scan.conformanceLevel}`}
-        actions={<StatusBadge status={scan.status} />}
+        actions={
+          <span className="row" style={{ gap: '0.4rem' }}>
+            <span className="muted">Execution:</span>
+            <StatusBadge status={scan.status} />
+            {done ? (
+              <>
+                <span className="muted">Coverage:</span>
+                <span className={`badge ${coverageComplete ? 'complete' : 'incomplete'}`}>
+                  {coverageComplete ? 'complete' : 'incomplete'}
+                </span>
+              </>
+            ) : null}
+          </span>
+        }
       />
+      {done && !coverageComplete ? (
+        <Notice kind="warn">
+          The scan job finished, but coverage is incomplete ({incompleteReasons.join(', ')}).
+          Results describe only the {scannedPages.length} of {pages.length} discovered pages that
+          were scanned. See Coverage below.
+        </Notice>
+      ) : null}
       {active ? (
         <Notice kind="warn">Scan in progress. This page updates automatically.</Notice>
       ) : null}
@@ -389,6 +422,12 @@ export default function ScanReport() {
 
           <div className="card">
             <h2>Coverage</h2>
+            <p>
+              <strong>Execution:</strong> scan {scan.status}. <strong>Coverage:</strong>{' '}
+              {coverageComplete
+                ? 'complete, every discovered page was scanned.'
+                : `incomplete (${incompleteReasons.join(', ')}).`}
+            </p>
             <p data-testid="coverage-counts">
               {pages.length} discovered · {scannedPages.length} scanned · {failedPages.length}{' '}
               failed · {skippedPages.length - excludedPages.length} skipped · {excludedPages.length}{' '}
@@ -420,7 +459,7 @@ export default function ScanReport() {
                 </table>
               </div>
             ) : null}
-            <CoverageLimits orgId={orgId} scanId={scan.id} />
+            <CoverageLimits coverage={cov.data} />
             <div className="table-wrap">
               <table>
                 <caption className="sr-only">Pages in this scan</caption>
